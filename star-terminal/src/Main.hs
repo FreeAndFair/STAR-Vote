@@ -34,7 +34,7 @@ formHandler :: Snap ()
 formHandler = do
   modifyResponse $ setContentType "text/html"
                  . setHeader (mk "Cache-Control") "max-age=0"
-  render (page "Test Form" (navbar <> form))
+  render (page "Test Form" (navbar strings <> form))
   where form = formView strings
 
 render :: Html -> Snap ()
@@ -42,7 +42,8 @@ render = writeLBS . renderHtml
 
 strings :: Translations
 strings = translations
-  [ ("foo", "bar")
-  , ("baz", "nao")
+  [ ("next_step", "next step")
+  , ("previous_step", "previous step")
   , ("select_candidate", "Please select a candidate")
+  , ("show_progress", "show progress")
   ]

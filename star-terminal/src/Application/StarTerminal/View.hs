@@ -43,37 +43,19 @@ page pageTitle pageContent = docTypeHtml ! lang "en" $ do
     script mempty ! src "https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"
     script mempty ! src "static/bootstrap-3.2.0-dist/js/bootstrap.min.js"
 
-navbar :: Html
-navbar =
+navbar :: Translations -> Html
+navbar ts =
   H.div ! class_ "navbar navbar-default navbar-fixed-top" ! role "navigation" $ H.div ! class_ "container" $ do
-      H.div ! class_ "navbar-header" $ do
-          button ! type_ "button" ! class_ "navbar-toggle collapsed" ! dataAttribute "toggle" "collapse" ! dataAttribute "target" ".navbar-collapse" $ do
-              H.span ! class_ "sr-only" $ "Toggle navigation"
-              H.span ! class_ "icon-bar" $ mempty
-              H.span ! class_ "icon-bar" $ mempty
-              H.span ! class_ "icon-bar" $ mempty
-          a ! class_ "navbar-brand" ! href "#" $ "Project name"
-      H.div ! class_ "navbar-collapse collapse" $ do
-          ul ! class_ "nav navbar-nav" $ do
-              li ! class_ "active" $ a ! href "#" $ "Home"
-              li $ a ! href "#about" $ "About"
-              li $ a ! href "#contact" $ "Contact"
-              li ! class_ "dropdown" $ do
-                  a ! href "#" ! class_ "dropdown-toggle" ! dataAttribute "toggle" "dropdown" $ do
-                      "Dropdown"
-                      H.span ! class_ "caret" $ mempty
-                  ul ! class_ "dropdown-menu" ! role "menu" $ do
-                      li $ a ! href "#" $ "Action"
-                      li $ a ! href "#" $ "Another action"
-                      li $ a ! href "#" $ "Something else here"
-                      li ! class_ "divider" $ mempty
-                      li ! class_ "dropdown-header" $ "Nav header"
-                      li $ a ! href "#" $ "Separated link"
-                      li $ a ! href "#" $ "One more separated link"
-          ul ! class_ "nav navbar-nav navbar-right" $ do
-              li $ a ! href "../navbar/" $ "Default"
-              li $ a ! href "../navbar-static-top/" $ "Static top"
-              li ! class_ "active" $ a ! href "./" $ "Fixed top"
+      button ! type_ "button" ! class_ "btn btn-default navbar-btn navbar-left" $ do
+        H.span mempty ! class_ "glyphicon glyphicon-chevron-left"
+        whitespace
+        t "previous_step" ts
+      button ! type_ "button" ! class_ "btn btn-default navbar-btn navbar-right" $ do
+        t "next_step" ts
+        whitespace
+        H.span mempty ! class_ "glyphicon glyphicon-chevron-right"
+      button ! type_ "button" ! class_ "btn btn-default navbar-btn center-block" $ do
+        t "show_progress" ts
 
 container :: Html -> Html
 container pageContent =
@@ -96,7 +78,8 @@ ieShims = preEscapedToHtml $ T.unlines
 t :: Text -> Translations -> Html
 t k strings = toHtml (localize k strings)
 
-
+whitespace :: Html
+whitespace = toHtml (" " :: Text)
 
 
 
