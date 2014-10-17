@@ -8,7 +8,7 @@ import qualified Data.Text as T
 import           Text.Blaze.Html5
 import           Text.Blaze.Html5.Attributes
 import qualified Text.Blaze.Html5 as H
-import qualified Text.Blaze.Html5.Attributes as A
+-- import qualified Text.Blaze.Html5.Attributes as A
 import           Text.Blaze.Internal (attribute)
 import           Prelude hiding (div)
 
@@ -17,17 +17,15 @@ import           Application.StarTerminal.Localization
 formView :: Translations -> Html
 formView ts = div ! class_ "container" $ do
   H.form ! role "form" $ do
-    h2 (t "select_candidate" ts)
-    ul $ do
-      foldl' (\h c -> h <> candidateView c) mempty gubCandidates
+    h1 (t "select_candidate" ts)
+    foldl' (\h c -> h <> candidateView c) mempty gubCandidates
 
 candidateView :: (Text, Text) -> Html
-candidateView (k, c) = li ! class_ "candidate" $ do
-  H.label ! for l $ do
-    toHtml c
-  input ! type_ "radio" ! name "candidate" ! value (toValue k) ! A.id l
-  where
-    l = toValue (T.append "candidate_" k)
+candidateView (k, c) =
+  div ! class_ "radio" $ do
+    H.label $ do
+      input ! type_ "radio" ! name "candidate" ! value (toValue k)
+      toHtml c
 
 -- TODO: Serve our own jquery, ie shims.
 page :: Text -> Html -> Html
