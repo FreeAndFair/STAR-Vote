@@ -2,8 +2,8 @@
 module Application.StarTerminal.Controller where
 
 import           Data.CaseInsensitive (mk)
-import           Data.Monoid ((<>))
-import           Data.Text (Text, unpack)
+import           Data.Text (Text, pack, unpack)
+import qualified Data.Text as T
 import           Data.Text.Encoding (decodeUtf8With, encodeUtf8)
 import           Data.Text.Encoding.Error (ignore)
 import           Numeric (readDec)
@@ -21,23 +21,32 @@ ballotStepHandler = do
                  . setHeader (mk "Cache-Control") "max-age=0"
   ballotId <- param "ballotId"
   stepId   <- param "stepId"
-  let ballot  = ballotId >>= flip lookup ballotStyles
-  let race = lookupRace ballot stepId
-  maybe pass (\r ->
-    render (p (navbar strings <> ballotStepView strings r)))
-    race
+  maybe pass (\(bId, idx, race) ->
+    render (p (ballotStepView strings (nav bId idx) race)))
+    (params ballotId stepId)
   where
     p = page (localize "star_terminal" strings)
-    lookupRace ballot index = do
-      b <- ballot
-      i <- index >>= parseInt
-      bRace i b
+    params mBId mIdx = do
+      bId    <- mBId
+      idx    <- mIdx >>= parseInt
+      ballot <- lookup bId ballotStyles
+      race   <- bRace idx ballot
+      return (bId, idx, race)
+    nav bId idx = NavLinks
+      { _prev = if idx > 0 then Just (stepUrl bId (idx - 1)) else Nothing
+      , _next = if idx < max then Just (stepUrl bId (idx + 1)) else Nothing
+      , _index = Nothing
+      }
+    max = 999 -- TODO
 
 ballotHandler :: Snap ()
 ballotHandler = do
   modifyRequest $
     rqSetParam (encodeUtf8 "stepId") [encodeUtf8 "0"]
   ballotStepHandler
+
+stepUrl :: BallotId -> Int -> Text
+stepUrl bId idx = T.concat ["/ballot/", bId, "/step/", pack (show idx)]
 
 render :: Html -> Snap ()
 render = writeLBS . renderHtml
@@ -75,6 +84,26 @@ ballotStyles =
         , Option "c5" "John Kitzhaber"    (Just "Dem") (Just "Governor of Oregon")
         , Option "c6" "Jason Levin"       (Just "Grn") (Just "Cannabis Industry Professional")
         , Option "c7" "Dennis Richardson" (Just "Rep") (Just "Businessman; State Representative")
+        ]
+      }
+    , Race
+      { _rDescription = "US Senator"
+      , _rOptions =
+        [ Option "s1" "James E. Leuenberger" (Just "Con") Nothing
+        , Option "s2" "Christina Jean Lugo"  (Just "Grn") (Just "Artist, Peace Activist")
+        , Option "s3" "Jeff Merkley"         (Just "Dem") (Just "United States Senator")
+        , Option "s4" "Mike Montchalin"      (Just "L")   (Just "Candidate/Retired")
+        , Option "s5" "Monica Wehby"         (Just "Rep") (Just "Pediatric Neurosurgeon")
+        ]
+      }
+    , Race
+      { _rDescription = "US Representative, 3rd District"
+      , _rOptions =
+        [ Option "r1" "Earl Blumenauer"  (Just "Dem") (Just "U.S. Congressman")
+        , Option "r2" "James Buchal"     (Just "Rep") (Just "Attorney")
+        , Option "r3" "Jeffrey J Langan" (Just "L")   Nothing
+        , Option "r4" "Michael Meo"      (Just "Grn") (Just "retired schoolteacher")
+        , Option "r5" "David Walker"     (Just "Non") (Just "Family Nurse Practitioner")
         ]
       }
     ])

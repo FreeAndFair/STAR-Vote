@@ -3,7 +3,8 @@ module Application.StarTerminal.BallotStyle where
 
 import           Data.Text (Text)
 
-type BallotStyles = [(Text, BallotStyle)]
+type BallotId = Text
+type BallotStyles = [(BallotId, BallotStyle)]
 
 data BallotStyle = BallotStyle [Race]
 

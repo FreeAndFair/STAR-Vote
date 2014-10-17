@@ -15,11 +15,18 @@ import           Prelude hiding (div)
 import           Application.StarTerminal.BallotStyle
 import           Application.StarTerminal.Localization
 
-ballotStepView :: Translations -> Race -> Html
-ballotStepView ts r =
+data NavLinks = NavLinks
+  { _prev :: Maybe Text
+  , _next :: Maybe Text
+  , _index :: Maybe Text
+  }
+
+ballotStepView :: Translations -> NavLinks -> Race -> Html
+ballotStepView ts navLinks r = withNav ts navLinks $
   div ! class_ "container" $ do
-    H.form ! role "form" $ do
+    div ! class_ "page-header" $ do
       h1 (toHtml (_rDescription r))
+    H.form ! role "form" $ do
       foldl' (\h o -> h <> ballotOptionView ts o) mempty (_rOptions r)
 
 ballotOptionView :: Translations -> Option -> Html
@@ -53,19 +60,33 @@ page pageTitle pageContent = docTypeHtml ! lang "en" $ do
     script mempty ! src "https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"
     script mempty ! src "/static/bootstrap-3.2.0-dist/js/bootstrap.min.js"
 
-navbar :: Translations -> Html
-navbar ts =
+withNav :: Translations -> NavLinks -> Html -> Html
+withNav ts navLinks c = navbar ts navLinks <> c
+
+navbar :: Translations -> NavLinks -> Html
+navbar ts navLinks =
   H.div ! class_ "navbar navbar-default navbar-fixed-top" ! role "navigation" $ H.div ! class_ "container" $ do
-      button ! type_ "button" ! class_ "btn btn-default navbar-btn navbar-left" $ do
-        H.span mempty ! class_ "glyphicon glyphicon-chevron-left"
-        whitespace
-        t "previous_step" ts
-      button ! type_ "button" ! class_ "btn btn-default navbar-btn navbar-right" $ do
-        t "next_step" ts
-        whitespace
-        H.span mempty ! class_ "glyphicon glyphicon-chevron-right"
-      button ! type_ "button" ! class_ "btn btn-default navbar-btn center-block" $ do
-        t "show_progress" ts
+      maybe mempty (\url -> navLink "navbar-left" url $ do
+          H.span mempty ! class_ "glyphicon glyphicon-chevron-left"
+          whitespace
+          t "previous_step" ts)
+          (_prev navLinks)
+      maybe mempty (\url -> navLink "navbar-right" url $ do
+          t "next_step" ts
+          whitespace
+          H.span mempty ! class_ "glyphicon glyphicon-chevron-right")
+          (_next navLinks)
+      maybe mempty (\url -> navLink "center-block" url $ do
+          t "show_progress" ts)
+          (_index navLinks)
+
+navLink :: Text -> Text -> Html -> Html
+navLink classes url l =
+  p ! class_ cs $ do
+    a ! href (toValue url) ! class_ "btn btn-default" $ do
+      l
+  where
+    cs = toValue (T.append "navbar-btn " classes)
 
 role :: AttributeValue -> Attribute
 role = attribute "role" " role=\""
