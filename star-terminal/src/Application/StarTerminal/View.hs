@@ -12,20 +12,30 @@ import qualified Text.Blaze.Html5 as H
 import           Text.Blaze.Internal (attribute)
 import           Prelude hiding (div)
 
+import           Application.StarTerminal.BallotStyle
 import           Application.StarTerminal.Localization
 
-formView :: Translations -> Html
-formView ts = div ! class_ "container" $ do
-  H.form ! role "form" $ do
-    h1 (t "select_candidate" ts)
-    foldl' (\h c -> h <> candidateView c) mempty gubCandidates
+ballotStepView :: Translations -> Race -> Html
+ballotStepView ts r =
+  div ! class_ "container" $ do
+    H.form ! role "form" $ do
+      h1 (toHtml (_rDescription r))
+      foldl' (\h o -> h <> ballotOptionView ts o) mempty (_rOptions r)
 
-candidateView :: (Text, Text) -> Html
-candidateView (k, c) =
+ballotOptionView :: Translations -> Option -> Html
+ballotOptionView _ o =
   div ! class_ "radio" $ do
     H.label $ do
-      input ! type_ "radio" ! name "candidate" ! value (toValue k)
-      toHtml c
+      input ! type_ "radio" ! name "selection" ! value k
+      H.span $ do
+        toHtml (_oName o)
+        whitespace
+        maybe mempty (\party -> toHtml (T.concat ["(", party, ")"])) (_oParty o)
+      br
+      small ! class_ "text-muted" $ do
+        maybe nbsp toHtml (_oOccupation o)
+  where
+    k = toValue (_oId o)
 
 -- TODO: Serve our own jquery, ie shims.
 page :: Text -> Html -> Html
@@ -35,13 +45,13 @@ page pageTitle pageContent = docTypeHtml ! lang "en" $ do
     meta ! httpEquiv "X-UA-Compatible" ! content "IE=edge"
     meta ! name "viewport" ! content "width=device-width, initial-scale=1"
     H.title (toHtml pageTitle)
-    link ! href "static/bootstrap-3.2.0-dist/css/bootstrap.min.css" ! rel "stylesheet"
-    link ! href "static/css/site.css" ! rel "stylesheet"
+    link ! href "/static/bootstrap-3.2.0-dist/css/bootstrap.min.css" ! rel "stylesheet"
+    link ! href "/static/css/site.css" ! rel "stylesheet"
     ieShims
   body $ do
     pageContent
     script mempty ! src "https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"
-    script mempty ! src "static/bootstrap-3.2.0-dist/js/bootstrap.min.js"
+    script mempty ! src "/static/bootstrap-3.2.0-dist/js/bootstrap.min.js"
 
 navbar :: Translations -> Html
 navbar ts =
@@ -56,11 +66,6 @@ navbar ts =
         H.span mempty ! class_ "glyphicon glyphicon-chevron-right"
       button ! type_ "button" ! class_ "btn btn-default navbar-btn center-block" $ do
         t "show_progress" ts
-
-container :: Html -> Html
-container pageContent =
-  H.div ! class_ "container" $ do
-    pageContent
 
 role :: AttributeValue -> Attribute
 role = attribute "role" " role=\""
@@ -81,16 +86,5 @@ t k strings = toHtml (localize k strings)
 whitespace :: Html
 whitespace = toHtml (" " :: Text)
 
-
-
-
-gubCandidates :: [(Text, Text)]
-gubCandidates =
-  [ ("c1", "Aaron Auer (Con) Minister of the Gospel")
-  , ("c2", "Tovia E Fornah (Non) Service")
-  , ("c3", "Paul Grad (L) Investor")
-  , ("c4", "Chris Henry (P)")
-  , ("c5", "John Kitzhaber (Dem) Governor of Oregon")
-  , ("c6", "Jason Levin (Grn) Cannabis Industry Professional")
-  , ("c7", "Dennis Richardson (Rep) Businessman; State Representative")
-  ]
+nbsp :: Html
+nbsp = preEscapedToHtml ("&nbsp;" :: Text)
