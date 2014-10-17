@@ -2,6 +2,7 @@
 module Main where
 
 import           Control.Applicative
+import           Data.CaseInsensitive (mk)
 import           Data.Monoid ((<>))
 import           Snap.Core
 import           Snap.Util.FileServe
@@ -30,7 +31,10 @@ echoHandler = do
           writeBS param
 
 formHandler :: Snap ()
-formHandler = render (page "Test Form" (navbar <> form))
+formHandler = do
+  modifyResponse $ setContentType "text/html"
+                 . setHeader (mk "Cache-Control") "max-age=0"
+  render (page "Test Form" (navbar <> form))
   where form = formView strings
 
 render :: Html -> Snap ()
