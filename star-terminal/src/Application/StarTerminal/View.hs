@@ -8,10 +8,11 @@ import qualified Data.Text as T
 import           Text.Blaze.Html5
 import           Text.Blaze.Html5.Attributes
 import qualified Text.Blaze.Html5 as H
--- import qualified Text.Blaze.Html5.Attributes as A
+import qualified Text.Blaze.Html5.Attributes as A
 import           Text.Blaze.Internal (attribute)
 import           Prelude hiding (div)
 
+import           Application.StarTerminal.Ballot
 import           Application.StarTerminal.BallotStyle
 import           Application.StarTerminal.Localization
 
@@ -21,19 +22,21 @@ data NavLinks = NavLinks
   , _index :: Maybe Text
   }
 
-ballotStepView :: Translations -> NavLinks -> Race -> Html
-ballotStepView ts navLinks r = withNav ts navLinks $
+ballotStepView :: Translations -> NavLinks -> Race -> Maybe Selection -> Html
+ballotStepView ts navLinks r s = withNav ts navLinks $
   div ! class_ "container" $ do
     div ! class_ "page-header" $ do
       h1 (toHtml (_rDescription r))
-    H.form ! role "form" $ do
-      foldl' (\h o -> h <> ballotOptionView ts o) mempty (_rOptions r)
+    H.form ! role "form" ! A.method "post" $ do
+      foldl' (\h o -> h <> ballotOptionView ts s o) mempty (_rOptions r)
+      H.button ! type_ "submit" ! class_ "btn btn-default" $ do
+        (t "submit" ts)
 
-ballotOptionView :: Translations -> Option -> Html
-ballotOptionView _ o =
+ballotOptionView :: Translations -> Maybe Selection -> Option -> Html
+ballotOptionView _ s o =
   div ! class_ "radio" $ do
     H.label $ do
-      input ! type_ "radio" ! name "selection" ! value k
+      input ! type_ "radio" ! name "selection" ! value k ! isChecked
       H.span $ do
         toHtml (_oName o)
         whitespace
@@ -43,6 +46,9 @@ ballotOptionView _ o =
         maybe nbsp toHtml (_oOccupation o)
   where
     k = toValue (_oId o)
+    isChecked = case s of
+      Just s' -> if s' == _oId o then checked "checked" else mempty
+      Nothing -> mempty
 
 -- TODO: Serve our own jquery, ie shims.
 page :: Text -> Html -> Html

@@ -1,37 +1,38 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Application.StarTerminal.Controller where
 
+import           Control.Applicative ((<$>))
+import           Data.ByteString (ByteString)
 import           Data.CaseInsensitive (mk)
-import           Data.Text (Text, pack, unpack)
+import           Data.Text (Text, pack)
 import qualified Data.Text as T
 import           Data.Text.Encoding (decodeUtf8With, encodeUtf8)
 import           Data.Text.Encoding.Error (ignore)
-import           Numeric (readDec)
 import           Snap.Core
 import           Text.Blaze.Html5 (Html)
 import           Text.Blaze.Html.Renderer.Utf8 (renderHtml)
 
+import           Application.StarTerminal.Ballot
 import           Application.StarTerminal.BallotStyle
 import           Application.StarTerminal.Localization
 import           Application.StarTerminal.View
 
-ballotStepHandler :: Snap ()
-ballotStepHandler = do
+ballotHandler :: Snap ()
+ballotHandler = do
+  ballotId <- param "ballotId"
+  maybe pass (\bId ->
+    redirect (e (stepUrl bId 0)))
+    ballotId
+
+showBallotStep :: Snap ()
+showBallotStep = do
+  (bId, idx, race) <- ballotStepParams
   modifyResponse $ setContentType "text/html"
                  . setHeader (mk "Cache-Control") "max-age=0"
-  ballotId <- param "ballotId"
-  stepId   <- param "stepId"
-  maybe pass (\(bId, idx, race) ->
-    render (p (ballotStepView strings (nav bId idx) race)))
-    (params ballotId stepId)
+  s <- getSelection bId idx
+  render (p (ballotStepView strings (nav bId idx) race s))
   where
     p = page (localize "star_terminal" strings)
-    params mBId mIdx = do
-      bId    <- mBId
-      idx    <- mIdx >>= parseInt
-      ballot <- lookup bId ballotStyles
-      race   <- bRace idx ballot
-      return (bId, idx, race)
     nav bId idx = NavLinks
       { _prev = if idx > 0 then Just (stepUrl bId (idx - 1)) else Nothing
       , _next = if idx < max then Just (stepUrl bId (idx + 1)) else Nothing
@@ -39,11 +40,48 @@ ballotStepHandler = do
       }
     max = 999 -- TODO
 
-ballotHandler :: Snap ()
-ballotHandler = do
-  modifyRequest $
-    rqSetParam (encodeUtf8 "stepId") [encodeUtf8 "0"]
-  ballotStepHandler
+recordBallotSelection :: Snap ()
+recordBallotSelection = do
+  (bId, idx, _) <- ballotStepParams
+  s <- getPostParam (e "selection")
+  case s of
+    Just selection -> do
+      setSelection bId idx (d selection)
+      redirect (e (stepUrl bId (idx + 1)))
+    Nothing -> pass
+
+ballotStepParams :: Snap (BallotId, Int, Race)
+ballotStepParams = do
+  ballotId <- param "ballotId"
+  stepId   <- param "stepId"
+  maybe pass return (params ballotId stepId)
+  where
+    params mBId mIdx = do
+      bId    <- mBId
+      idx    <- mIdx >>= parseInt
+      ballot <- Prelude.lookup bId ballotStyles
+      race   <- bRace idx ballot
+      return (bId, idx, race)
+
+getSelection :: MonadSnap m => BallotId -> Int -> m (Maybe Selection)
+getSelection bId idx = do
+  let k = key bId idx
+  c <- getCookie (e k)
+  return $ (d . cookieValue) <$> c
+
+setSelection :: MonadSnap m => BallotId -> Int -> Selection -> m ()
+setSelection bId idx s = modifyResponse $ addResponseCookie (c s)
+  where
+    k = key bId idx
+    c selection = Cookie
+      { cookieName     = e k
+      , cookieValue    = e selection
+      , cookieExpires  = Nothing
+      , cookieDomain   = Nothing
+      , cookiePath     = Just (e "/")
+      , cookieSecure   = False  -- TODO: should be True in production
+      , cookieHttpOnly = True
+      }
 
 stepUrl :: BallotId -> Int -> Text
 stepUrl bId idx = T.concat ["/ballot/", bId, "/step/", pack (show idx)]
@@ -56,11 +94,11 @@ param k = do
   p <- getParam (encodeUtf8 k)
   return $ fmap (decodeUtf8With ignore) p
 
-parseInt :: Text -> Maybe Int
-parseInt = safeHead . map fst . readDec . unpack
-  where
-    safeHead (x:_) = Just x
-    safeHead []     = Nothing
+e :: Text -> ByteString
+e = encodeUtf8
+
+d :: ByteString -> Text
+d = decodeUtf8With ignore
 
 strings :: Translations
 strings = translations
@@ -69,6 +107,7 @@ strings = translations
   , ("select_candidate", "Please select a candidate")
   , ("show_progress", "show progress")
   , ("star_terminal", "STAR Terminal")
+  , ("submit", "Submit")
   ]
 
 ballotStyles :: BallotStyles

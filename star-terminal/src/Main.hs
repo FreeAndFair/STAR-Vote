@@ -14,7 +14,8 @@ main = quickHttpServe site
 site :: Snap ()
 site =
     -- ifTop (formHandler) <|>
-    route [ ("ballot/:ballotId/step/:stepId", ballotStepHandler)
-          , ("ballot/:ballotId", ballotHandler)
+    route [ ("ballot/:ballotId/step/:stepId", method GET  showBallotStep)
+          , ("ballot/:ballotId/step/:stepId", method POST recordBallotSelection)
+          , ("ballot/:ballotId",              method GET  ballotHandler)
           ] <|>
     dir "static" (serveDirectory "static")
