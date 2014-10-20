@@ -2,6 +2,7 @@
 module Application.StarTerminal.View where
 
 import           Data.List (foldl')
+import           Data.Maybe (isJust)
 import           Data.Monoid ((<>), mempty)
 import           Data.Text (Text)
 import qualified Data.Text as T
@@ -13,7 +14,10 @@ import           Text.Blaze.Internal (attribute)
 import           Prelude hiding (div)
 
 import           Application.StarTerminal.Ballot
+import qualified Application.StarTerminal.Ballot as Ballot
 import           Application.StarTerminal.BallotStyle
+import qualified Application.StarTerminal.BallotStyle as BS
+import           Application.StarTerminal.LinkHelper
 import           Application.StarTerminal.Localization
 
 data NavLinks = NavLinks
@@ -38,9 +42,7 @@ ballotOptionView _ s o =
     H.label $ do
       input ! type_ "radio" ! name "selection" ! value k ! isChecked
       H.span $ do
-        toHtml (_oName o)
-        whitespace
-        maybe mempty (\party -> toHtml (T.concat ["(", party, ")"])) (_oParty o)
+        selectionDescription o
       br
       small ! class_ "text-muted" $ do
         maybe nbsp toHtml (_oOccupation o)
@@ -50,7 +52,39 @@ ballotOptionView _ s o =
       Just s' -> if s' == _oId o then checked "checked" else mempty
       Nothing -> mempty
 
--- TODO: Serve our own jquery, ie shims.
+selectionDescription :: Option -> Html
+selectionDescription o = do
+  toHtml (_oName o)
+  whitespace
+  maybe mempty (\party -> toHtml (T.concat ["(", party, ")"])) (_oParty o)
+
+summaryView :: Translations -> BallotStyle -> Ballot -> Html
+summaryView ts bStyle ballot =
+  div ! class_ "container" $ do
+    div ! class_ "page-header" $ do
+      h1 (t "summary" ts)
+    foldl' (\h race -> h <> summaryItemView ts bStyle race ballot)
+      mempty (bRaces bStyle)
+
+summaryItemView :: Translations -> BallotStyle -> Race -> Ballot -> Html
+summaryItemView ts bStyle race ballot =
+  div ! class_ (toValue (T.append "summary-item" bgClass)) $ do
+    p ! class_ "item-title text-left" $ do
+      a ! href (toValue (stepUrl bId rId)) $ do
+        toHtml itemTitle
+    p ! class_ "item-selection text-right" $ do
+      case mOpt of
+        Just opt -> selectionDescription opt
+        Nothing  -> preEscapedToHtml ("&mdash;" :: Text)
+  where
+    itemTitle = _rDescription race
+    selection = Ballot.lookup (key bStyle race) ballot
+    mOpt = selection >>= \s -> BS.option s race
+    bgClass = if isJust mOpt then "" else " bg-warning"
+    bId = _bId bStyle
+    rId = _rId race
+
+-- TODO: Serve our own jquery, IE shims.
 page :: Text -> Html -> Html
 page pageTitle pageContent = docTypeHtml ! lang "en" $ do
   H.head $ do

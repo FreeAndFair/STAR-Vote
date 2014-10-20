@@ -17,5 +17,6 @@ site =
     route [ ("ballot/:ballotId/step/:stepId", method GET  showBallotStep)
           , ("ballot/:ballotId/step/:stepId", method POST recordBallotSelection)
           , ("ballot/:ballotId",              method GET  ballotHandler)
+          , ("ballot/:ballotId/summary",      method GET  showSummary)
           ] <|>
     dir "static" (serveDirectory "static")
