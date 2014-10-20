@@ -37,10 +37,12 @@ import qualified Data.Text       as T
 type TMap  k v = Map k (TVar v)
 type StatusDB  = TMap (ID Voter) (VoterStatus, [ID Precinct])
 
+main :: IO ()
 main = do
-	dbRef <- atomically $ newTVar (def :: StatusDB) -- for now, just store in memory
+	dbRef <- atomically $ newTVar def -- for now, just store in memory
 	quickHttpServe (voterStatusDB dbRef)
 
+voterStatusDB :: TVar StatusDB -> Snap ()
 voterStatusDB dbRef = route
 	[ ("lookup", method GET . useURIParam "voter" $ \voter -> do
 		v <- atomically $ do
