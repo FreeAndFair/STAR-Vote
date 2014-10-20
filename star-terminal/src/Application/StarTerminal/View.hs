@@ -12,22 +12,43 @@ import qualified Text.Blaze.Html5.Attributes as A
 import           Text.Blaze.Internal (attribute)
 import           Prelude hiding (div)
 
+import           Application.StarTerminal.Ballot
+import           Application.StarTerminal.BallotStyle
 import           Application.StarTerminal.Localization
 
-formView :: Translations -> Html
-formView ts = div ! class_ "container" $ do
-  H.form ! role "form" $ do
-    h2 (t "select_candidate" ts)
-    ul $ do
-      foldl' (\h c -> h <> candidateView c) mempty gubCandidates
+data NavLinks = NavLinks
+  { _prev :: Maybe Text
+  , _next :: Maybe Text
+  , _index :: Maybe Text
+  }
 
-candidateView :: (Text, Text) -> Html
-candidateView (k, c) = li ! class_ "candidate" $ do
-  H.label ! for l $ do
-    toHtml c
-  input ! type_ "radio" ! name "candidate" ! value (toValue k) ! A.id l
+ballotStepView :: Translations -> NavLinks -> Race -> Maybe Selection -> Html
+ballotStepView ts navLinks r s = withNav ts navLinks $
+  div ! class_ "container" $ do
+    div ! class_ "page-header" $ do
+      h1 (toHtml (_rDescription r))
+    H.form ! role "form" ! A.method "post" $ do
+      foldl' (\h o -> h <> ballotOptionView ts s o) mempty (_rOptions r)
+      H.button ! type_ "submit" ! class_ "btn btn-default" $ do
+        (t "submit" ts)
+
+ballotOptionView :: Translations -> Maybe Selection -> Option -> Html
+ballotOptionView _ s o =
+  div ! class_ "radio" $ do
+    H.label $ do
+      input ! type_ "radio" ! name "selection" ! value k ! isChecked
+      H.span $ do
+        toHtml (_oName o)
+        whitespace
+        maybe mempty (\party -> toHtml (T.concat ["(", party, ")"])) (_oParty o)
+      br
+      small ! class_ "text-muted" $ do
+        maybe nbsp toHtml (_oOccupation o)
   where
-    l = toValue (T.append "candidate_" k)
+    k = toValue (_oId o)
+    isChecked = case s of
+      Just s' -> if s' == _oId o then checked "checked" else mempty
+      Nothing -> mempty
 
 -- TODO: Serve our own jquery, ie shims.
 page :: Text -> Html -> Html
@@ -37,50 +58,41 @@ page pageTitle pageContent = docTypeHtml ! lang "en" $ do
     meta ! httpEquiv "X-UA-Compatible" ! content "IE=edge"
     meta ! name "viewport" ! content "width=device-width, initial-scale=1"
     H.title (toHtml pageTitle)
-    link ! href "static/bootstrap-3.2.0-dist/css/bootstrap.min.css" ! rel "stylesheet"
-    link ! href "static/css/site.css" ! rel "stylesheet"
+    link ! href "/static/bootstrap-3.2.0-dist/css/bootstrap.min.css" ! rel "stylesheet"
+    link ! href "/static/css/site.css" ! rel "stylesheet"
     ieShims
   body $ do
     pageContent
     script mempty ! src "https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"
-    script mempty ! src "static/bootstrap-3.2.0-dist/js/bootstrap.min.js"
+    script mempty ! src "/static/bootstrap-3.2.0-dist/js/bootstrap.min.js"
 
-navbar :: Html
-navbar =
+withNav :: Translations -> NavLinks -> Html -> Html
+withNav ts navLinks c = navbar ts navLinks <> c
+
+navbar :: Translations -> NavLinks -> Html
+navbar ts navLinks =
   H.div ! class_ "navbar navbar-default navbar-fixed-top" ! role "navigation" $ H.div ! class_ "container" $ do
-      H.div ! class_ "navbar-header" $ do
-          button ! type_ "button" ! class_ "navbar-toggle collapsed" ! dataAttribute "toggle" "collapse" ! dataAttribute "target" ".navbar-collapse" $ do
-              H.span ! class_ "sr-only" $ "Toggle navigation"
-              H.span ! class_ "icon-bar" $ mempty
-              H.span ! class_ "icon-bar" $ mempty
-              H.span ! class_ "icon-bar" $ mempty
-          a ! class_ "navbar-brand" ! href "#" $ "Project name"
-      H.div ! class_ "navbar-collapse collapse" $ do
-          ul ! class_ "nav navbar-nav" $ do
-              li ! class_ "active" $ a ! href "#" $ "Home"
-              li $ a ! href "#about" $ "About"
-              li $ a ! href "#contact" $ "Contact"
-              li ! class_ "dropdown" $ do
-                  a ! href "#" ! class_ "dropdown-toggle" ! dataAttribute "toggle" "dropdown" $ do
-                      "Dropdown"
-                      H.span ! class_ "caret" $ mempty
-                  ul ! class_ "dropdown-menu" ! role "menu" $ do
-                      li $ a ! href "#" $ "Action"
-                      li $ a ! href "#" $ "Another action"
-                      li $ a ! href "#" $ "Something else here"
-                      li ! class_ "divider" $ mempty
-                      li ! class_ "dropdown-header" $ "Nav header"
-                      li $ a ! href "#" $ "Separated link"
-                      li $ a ! href "#" $ "One more separated link"
-          ul ! class_ "nav navbar-nav navbar-right" $ do
-              li $ a ! href "../navbar/" $ "Default"
-              li $ a ! href "../navbar-static-top/" $ "Static top"
-              li ! class_ "active" $ a ! href "./" $ "Fixed top"
+      maybe mempty (\url -> navLink "navbar-left" url $ do
+          H.span mempty ! class_ "glyphicon glyphicon-chevron-left"
+          whitespace
+          t "previous_step" ts)
+          (_prev navLinks)
+      maybe mempty (\url -> navLink "navbar-right" url $ do
+          t "next_step" ts
+          whitespace
+          H.span mempty ! class_ "glyphicon glyphicon-chevron-right")
+          (_next navLinks)
+      maybe mempty (\url -> navLink "center-block" url $ do
+          t "show_progress" ts)
+          (_index navLinks)
 
-container :: Html -> Html
-container pageContent =
-  H.div ! class_ "container" $ do
-    pageContent
+navLink :: Text -> Text -> Html -> Html
+navLink classes url l =
+  p ! class_ cs $ do
+    a ! href (toValue url) ! class_ "btn btn-default" $ do
+      l
+  where
+    cs = toValue (T.append "navbar-btn " classes)
 
 role :: AttributeValue -> Attribute
 role = attribute "role" " role=\""
@@ -98,18 +110,8 @@ ieShims = preEscapedToHtml $ T.unlines
 t :: Text -> Translations -> Html
 t k strings = toHtml (localize k strings)
 
+whitespace :: Html
+whitespace = toHtml (" " :: Text)
 
-
-
-
-
-gubCandidates :: [(Text, Text)]
-gubCandidates =
-  [ ("c1", "Aaron Auer (Con) Minister of the Gospel")
-  , ("c2", "Tovia E Fornah (Non) Service")
-  , ("c3", "Paul Grad (L) Investor")
-  , ("c4", "Chris Henry (P)")
-  , ("c5", "John Kitzhaber (Dem) Governor of Oregon")
-  , ("c6", "Jason Levin (Grn) Cannabis Industry Professional")
-  , ("c7", "Dennis Richardson (Rep) Businessman; State Representative")
-  ]
+nbsp :: Html
+nbsp = preEscapedToHtml ("&nbsp;" :: Text)

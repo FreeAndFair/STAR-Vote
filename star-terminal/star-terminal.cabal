@@ -19,6 +19,7 @@ Executable star-terminal
     blaze-html,
     blaze-markup,
     bytestring                >= 0.9.1 && < 0.11,
+    case-insensitive,
     containers,
     MonadCatchIO-transformers >= 0.2.1 && < 0.4,
     mtl                       >= 2     && < 3,

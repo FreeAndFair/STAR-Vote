@@ -2,43 +2,20 @@
 module Main where
 
 import           Control.Applicative
-import           Data.Monoid ((<>))
 import           Snap.Core
 import           Snap.Util.FileServe
 import           Snap.Http.Server
-import           Text.Blaze.Html5 (Html)
-import           Text.Blaze.Html.Renderer.Utf8 (renderHtml)
 
-import           Application.StarTerminal.Localization
-import           Application.StarTerminal.View
+import           Application.StarTerminal.Controller
 
 main :: IO ()
 main = quickHttpServe site
 
 site :: Snap ()
 site =
-    ifTop (formHandler) <|>
-    route [ ("foo", writeBS "bar")
-          , ("echo/:echoparam", echoHandler)
+    -- ifTop (formHandler) <|>
+    route [ ("ballot/:ballotId/step/:stepId", method GET  showBallotStep)
+          , ("ballot/:ballotId/step/:stepId", method POST recordBallotSelection)
+          , ("ballot/:ballotId",              method GET  ballotHandler)
           ] <|>
     dir "static" (serveDirectory "static")
-
-echoHandler :: Snap ()
-echoHandler = do
-    param <- getParam "echoparam"
-    maybe (writeBS "must specify echo/param in URL")
-          writeBS param
-
-formHandler :: Snap ()
-formHandler = render (page "Test Form" (navbar <> form))
-  where form = formView strings
-
-render :: Html -> Snap ()
-render = writeLBS . renderHtml
-
-strings :: Translations
-strings = translations
-  [ ("foo", "bar")
-  , ("baz", "nao")
-  , ("select_candidate", "Please select a candidate")
-  ]
