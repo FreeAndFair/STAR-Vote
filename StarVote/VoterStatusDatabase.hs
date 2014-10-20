@@ -30,9 +30,9 @@ import qualified Data.Text       as T
 -- decoded using UTF8 then parsed using read. In inputs, where we write (ID x),
 -- we use the Integer instance of read and wrap it with an ID constructor
 -- ourselves.
--- GET   lookup           :: { voter :: URI  (ID Voter)                     } -> [ID Precinct]
--- POST  initialize       :: { db    :: Body [(ID Voter, ID Precinct)]      } -> {- produces the empty string as output -}
--- PATCH atomicSwapStatus :: { voter :: Body Integer, status :: Body Status } -> Status
+-- GET   lookup           :: { voter :: URI  (ID Voter)                        } -> [ID Precinct]
+-- POST  initialize       :: { db    :: Body [(ID Voter, ID Precinct)]         } -> {- produces the empty string as output -}
+-- PATCH atomicSwapStatus :: { voter :: Body (ID Voter), status :: Body Status } -> Status
 
 type TMap  k v = Map k (TVar v)
 type StatusDB  = TMap (ID Voter) (VoterStatus, [ID Precinct])
