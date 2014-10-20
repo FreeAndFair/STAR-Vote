@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings, ViewPatterns #-}
 module VoterStatusDatabase where
 
+import Control.Arrow
 import Control.Concurrent.STM hiding (atomically)
 import Control.Applicative
 import Control.Monad.Reader
@@ -30,7 +31,7 @@ import qualified Data.Text       as T
 -- we use the Integer instance of read and wrap it with an ID constructor
 -- ourselves.
 -- GET   lookup           :: { voter :: URI  (ID Voter)                     } -> [ID Precinct]
--- POST  initialize       :: { db    :: Body [(ID Voter, ID Precinct)]      } -> Void
+-- POST  initialize       :: { db    :: Body [(ID Voter, ID Precinct)]      } -> {- produces the empty string as output -}
 -- PATCH atomicSwapStatus :: { voter :: Body Integer, status :: Body Status } -> Status
 
 type TMap  k v = Map k (TVar v)
@@ -49,9 +50,9 @@ voterStatusDB dbRef = route
 				Just p  -> snd <$> readTVar p
 		writeShow v
 	  )
-	, ("initialize", method POST $ do
-		dbData_ <- idsFrom (readBodyParam "db")
-		use (atomically . buildStatusDB >=> atomically . writeTVar dbRef) dbData_
+	, ("initialize", method POST . useBodyParam "db" $ \dbData -> do
+		db <- atomically . buildStatusDB . map (ID *** ID) $ dbData
+		atomically (writeTVar dbRef db)
 	  )
 	, ("atomicSwapStatus", method PATCH
 	                     . useBodyParam "voter"  $ \voter  ->
@@ -63,25 +64,20 @@ voterStatusDB dbRef = route
 					(oldStatus, precincts) <- readTVar p
 					writeTVar p (status, precincts)
 					return (writeShow oldStatus)
-				Nothing -> return (setResponseCode 400 >> writeText "illegal voter")
+				Nothing -> return (errorResponse "illegal voter")
 		cont
 	  )
 	]
 
-use :: (v -> Snap ()) -> Either Text v -> Snap ()
-use f (Left err) = modifyResponse (setResponseCode 400) >> writeText err
-use f (Right v)  = f v
+errorResponse :: Text -> Snap ()
+errorResponse err = modifyResponse (setResponseCode 400) >> writeText err
 
 useURIParam, useBodyParam :: Read a => ByteString -> (a -> Snap ()) -> Snap ()
 useURIParam  = useParam rqQueryParams
 useBodyParam = useParam rqPostParams
 
-readURIParam, readBodyParam :: Read a => ByteString -> Snap (Either Text a)
-readURIParam  = readParam rqQueryParams
-readBodyParam = readParam rqPostParams
-
 useParam :: Read a => (Request -> Params) -> ByteString -> (a -> Snap ()) -> Snap ()
-useParam extractParams name f = readParam extractParams name >>= use f
+useParam extractParams name f = readParam extractParams name >>= either errorResponse f
 
 readParam :: Read a => (Request -> Params) -> ByteString -> Snap (Either Text a)
 readParam extractParams name = do
@@ -97,19 +93,13 @@ readParam extractParams name = do
 	reportWhere (Left  s) = Left (s <> " argument in parameter " <> T.pack (show name))
 	reportWhere (Right v) = Right v
 
+buildStatusDB :: [(ID Voter, ID Precinct)] -> STM StatusDB
+buildStatusDB = traverse newTVar . M.fromListWith combine . map inject where
+	combine (s1, ps1) (s2, ps2) = (s1, ps1 <> ps2)
+	inject (voter, precinct) = (voter, (Hasn't, [precinct]))
+
 writeShow :: Show a => a -> Snap ()
 writeShow = writeText . T.pack . show
-
-idsFrom :: Snap (Either Text [(Integer, Integer)]) -> Snap (Either Text [(ID a, ID b)])
-idsFrom = fmap (fmap (fmap (\(a, b) -> (ID a, ID b))))
-
-tmap :: Map k v -> STM (TMap k v)
-tmap = traverse newTVar
-
-buildStatusDB :: [(ID Voter, ID Precinct)] -> STM StatusDB
-buildStatusDB = tmap . M.fromListWith combine . map inject where
-	combine (s1, ps1) (s2, ps2) = (s1, ps1 ++ ps2)
-	inject (voter, precinct) = (voter, (Hasn't, [precinct]))
 
 atomically :: MonadIO m => STM a -> m a
 atomically = liftIO . STM.atomically
