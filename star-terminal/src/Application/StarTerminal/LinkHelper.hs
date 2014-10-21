@@ -19,3 +19,6 @@ firstStepUrl style = stepUrl (_bId style) (_rId (head (bRaces style)))
 
 summaryUrl :: BallotStyle -> Text
 summaryUrl style = T.concat ["/ballot/", _bId style, "/summary"]
+
+exitInstructionsUrl :: BallotStyle -> Text
+exitInstructionsUrl style = T.concat ["/ballot/", _bId style, "/complete"]

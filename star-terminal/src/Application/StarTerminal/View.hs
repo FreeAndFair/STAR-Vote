@@ -60,11 +60,13 @@ selectionDescription o = do
 
 summaryView :: Translations -> BallotStyle -> Ballot -> Html
 summaryView ts bStyle ballot =
-  div ! class_ "container" $ do
-    div ! class_ "page-header" $ do
-      h1 (t "summary" ts)
-    foldl' (\h race -> h <> summaryItemView ts bStyle race ballot)
-      mempty (bRaces bStyle)
+  H.form ! method "post" $ do
+    navSummary ts
+    div ! class_ "container" $ do
+      div ! class_ "page-header" $ do
+        h1 (t "summary" ts)
+      foldl' (\h race -> h <> summaryItemView ts bStyle race ballot)
+        mempty (bRaces bStyle)
 
 summaryItemView :: Translations -> BallotStyle -> Race -> Ballot -> Html
 summaryItemView ts bStyle race ballot =
@@ -83,6 +85,13 @@ summaryItemView ts bStyle race ballot =
     bgClass = if isJust mOpt then "" else " bg-warning"
     bId = _bId bStyle
     rId = _rId race
+
+exitInstructionsView :: Translations -> Html
+exitInstructionsView ts =
+  div ! class_ "container" $ do
+    div ! class_ "page-header" $ do
+      h1 (t "successful_vote" ts)
+    p (t "collect_ballot_and_receipt" ts)
 
 -- TODO: Serve our own jquery, IE shims.
 page :: Text -> Html -> Html
@@ -105,20 +114,30 @@ withNav ts navLinks c = navbar ts navLinks <> c
 
 navbar :: Translations -> NavLinks -> Html
 navbar ts navLinks =
-  H.div ! class_ "navbar navbar-default navbar-fixed-top" ! role "navigation" $ H.div ! class_ "container" $ do
-      maybe mempty (\url -> navLink "navbar-left" url $ do
-          H.span mempty ! class_ "glyphicon glyphicon-chevron-left"
-          whitespace
-          t "previous_step" ts)
-          (_prev navLinks)
-      maybe mempty (\url -> navLink "navbar-right" url $ do
-          t "next_step" ts
-          whitespace
-          H.span mempty ! class_ "glyphicon glyphicon-chevron-right")
-          (_next navLinks)
-      maybe mempty (\url -> navLink "center-block" url $ do
-          t "show_progress" ts)
-          (_index navLinks)
+  topNav $ do
+    maybe mempty (\url -> navLink "navbar-left" url $ do
+      H.span mempty ! class_ "glyphicon glyphicon-chevron-left"
+      whitespace
+      t "previous_step" ts)
+      (_prev navLinks)
+    maybe mempty (\url -> navLink "navbar-right" url $ do
+      t "next_step" ts
+      whitespace
+      H.span mempty ! class_ "glyphicon glyphicon-chevron-right")
+      (_next navLinks)
+    maybe mempty (\url -> navLink "center-block" url $ do
+      t "show_progress" ts)
+      (_index navLinks)
+
+navSummary :: Translations -> Html
+navSummary ts =
+  topNav $ do
+    button ! class_ "btn btn-default navbar-btn navbar-right" ! type_ "submit" $ do
+      t "print_ballot" ts
+
+topNav :: Html -> Html
+topNav c =
+  H.div ! class_ "navbar navbar-default navbar-fixed-top" ! role "navigation" $ H.div ! class_ "container" $ c
 
 navLink :: Text -> Text -> Html -> Html
 navLink classes url l =
