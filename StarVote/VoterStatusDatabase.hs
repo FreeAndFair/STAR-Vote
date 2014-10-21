@@ -5,20 +5,15 @@ import Application.Star.ID
 import Application.Star.Precinct
 import Application.Star.Voter
 import Control.Arrow
-import Control.Concurrent.STM hiding (atomically)
 import Control.Applicative
 import Control.Monad.Reader
-import Data.ByteString (ByteString)
-import Data.Char
 import Data.Default
 import Data.List
 import Data.Map  (Map)
-import Data.Monoid
-import Data.Text (Text)
-import Data.Text.Encoding
 import Data.Traversable
 import Numeric
-import Snap
+import Snap (method)
+import Util hiding (method) -- TODO: transition this file to Util-style error handling
 
 import qualified Control.Concurrent.STM as STM
 import qualified Data.ByteString as BS
@@ -72,37 +67,15 @@ voterStatusDB dbRef = route
 	  )
 	]
 
-errorResponse :: Text -> Snap ()
-errorResponse err = modifyResponse (setResponseCode 400) >> writeText err
-
+-- TODO: transition these to the Util.read*Param style
 useURIParam, useBodyParam :: Read a => ByteString -> (a -> Snap ()) -> Snap ()
 useURIParam  = useParam rqQueryParams
 useBodyParam = useParam rqPostParams
 
 useParam :: Read a => (Request -> Params) -> ByteString -> (a -> Snap ()) -> Snap ()
-useParam extractParams name f = readParam extractParams name >>= either errorResponse f
-
-readParam :: Read a => (Request -> Params) -> ByteString -> Snap (Either Text a)
-readParam extractParams name = do
-	params <- extractParams <$> getRequest
-	return . reportWhere $ case M.lookup name params of
-		Just (bs:_) -> case decodeUtf8' bs of
-			Right t -> case reads (T.unpack t) of
-				(v, rest):_ | all isSpace rest -> Right v
-				_ -> Left "unparseable"
-			_ -> Left "badly encoded"
-		_ -> Left "missing"
-	where
-	reportWhere (Left  s) = Left (s <> " argument in parameter " <> T.pack (show name))
-	reportWhere (Right v) = Right v
+useParam extractParams name f = runExceptT (readParam extractParams name) >>= either errorResponse f
 
 buildStatusDB :: [(ID Voter, ID Precinct)] -> STM StatusDB
 buildStatusDB = traverse newTVar . M.fromListWith combine . map inject where
 	combine (s1, ps1) (s2, ps2) = (s1, ps1 <> ps2)
 	inject (voter, precinct) = (voter, (Hasn't, [precinct]))
-
-writeShow :: Show a => a -> Snap ()
-writeShow = writeText . T.pack . show
-
-atomically :: MonadIO m => STM a -> m a
-atomically = liftIO . STM.atomically
