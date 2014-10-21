@@ -35,13 +35,20 @@ runTVarT = runReaderT . unTVarT
 instance MonadIO m => MonadState s (TVarT s m) where
 	get   = TVarT (join (asks (atomically . readTVar)))
 	put s = TVarT (join (asks (atomically . (`writeTVar` s))))
-	state f = TVarT $ do
-		tvar <- ask
-		atomically $ do
-			old <- readTVar tvar
-			let (result, new) = f old
-			writeTVar tvar new
-			return result
+	state f = tvarT (return . f)
+
+-- TODO: pick a better name, make a type class
+tvarT f = TVarT $ do
+	tvar <- ask
+	atomically $ do
+		old <- readTVar tvar
+		(result, new) <- f old
+		writeTVar tvar new
+		return result
+
+tvarT_ f = TVarT $ do
+	tvar <- ask
+	atomically $ readTVar tvar >>= f
 
 atomically :: MonadIO m => STM a -> m a
 atomically = liftIO . STM.atomically

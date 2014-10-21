@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts, OverloadedStrings #-}
 module VoterStatusDatabase where
 
 import Application.Star.ID
@@ -12,8 +12,7 @@ import Data.List
 import Data.Map  (Map)
 import Data.Traversable
 import Numeric
-import Snap (method)
-import Util hiding (method) -- TODO: transition this file to Util-style error handling
+import Util
 
 import qualified Control.Concurrent.STM as STM
 import qualified Data.ByteString as BS
@@ -34,46 +33,37 @@ type TMap  k v = Map k (TVar v)
 type StatusDB  = TMap (ID Voter) (VoterStatus, [ID Precinct])
 
 main :: IO ()
-main = do
-	dbRef <- atomically $ newTVar def -- for now, just store in memory
-	quickHttpServe (voterStatusDB dbRef)
+main = statefulErrorServeDef voterStatusDB
 
-voterStatusDB :: TVar StatusDB -> Snap ()
-voterStatusDB dbRef = route
-	[ ("lookup", method GET . useURIParam "voter" $ \voter -> do
-		v <- atomically $ do
-			db <- readTVar dbRef
-			case M.lookup voter db of
-				Nothing -> return []
-				Just p  -> snd <$> readTVar p
+voterStatusDB :: TVarT StatusDB (ExceptT Text Snap) ()
+voterStatusDB = route
+	[ ("lookup", do
+		method GET
+		voter <- readURIParam "voter"
+		v <- tvarT_ $ \db -> case M.lookup voter db of
+			Nothing -> return []
+			Just p  -> snd <$> readTVar p
 		writeShow v
 	  )
-	, ("initialize", method POST . useBodyParam "db" $ \dbData -> do
+	, ("initialize", do
+		method POST
+		dbData <- readBodyParam "db"
 		db <- atomically $ buildStatusDB dbData
-		atomically (writeTVar dbRef db)
+		put db
 	  )
-	, ("atomicSwapStatus", method PATCH
-	                     . useBodyParam "voter"  $ \voter  ->
-	                       useBodyParam "status" $ \status -> do
-		cont <- atomically $ do
-			db <- readTVar dbRef
-			case M.lookup voter db of
-				Just p -> do
-					(oldStatus, precincts) <- readTVar p
-					writeTVar p (status, precincts)
-					return (writeShow oldStatus)
-				Nothing -> return (errorResponse "illegal voter")
+	, ("atomicSwapStatus", do
+		method PATCH
+		voter  <- readBodyParam "voter"
+		status <- readBodyParam "status"
+		cont   <- tvarT_ $ \db -> case M.lookup voter db of
+			Just p -> do
+				(oldStatus, precincts) <- readTVar p
+				writeTVar p (status, precincts)
+				return (writeShow oldStatus)
+			Nothing -> return (errorResponse "illegal voter")
 		cont
 	  )
 	]
-
--- TODO: transition these to the Util.read*Param style
-useURIParam, useBodyParam :: Read a => ByteString -> (a -> Snap ()) -> Snap ()
-useURIParam  = useParam rqQueryParams
-useBodyParam = useParam rqPostParams
-
-useParam :: Read a => (Request -> Params) -> ByteString -> (a -> Snap ()) -> Snap ()
-useParam extractParams name f = runExceptT (readParam extractParams name) >>= either errorResponse f
 
 buildStatusDB :: [(ID Voter, ID Precinct)] -> STM StatusDB
 buildStatusDB = traverse newTVar . M.fromListWith combine . map inject where
