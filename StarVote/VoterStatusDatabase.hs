@@ -1,6 +1,9 @@
 {-# LANGUAGE OverloadedStrings, ViewPatterns #-}
 module VoterStatusDatabase where
 
+import Application.Star.ID
+import Application.Star.Precinct
+import Application.Star.Voter
 import Control.Arrow
 import Control.Concurrent.STM hiding (atomically)
 import Control.Applicative
@@ -16,7 +19,6 @@ import Data.Text.Encoding
 import Data.Traversable
 import Numeric
 import Snap
-import Types
 
 import qualified Control.Concurrent.STM as STM
 import qualified Data.ByteString as BS
