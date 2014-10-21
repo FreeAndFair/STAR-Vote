@@ -30,12 +30,9 @@ ballotHandler = do
 showBallotStep :: Snap ()
 showBallotStep = do
   (ballotStyle, race) <- ballotStepParams
-  modifyResponse $ setContentType "text/html"
-                 . setHeader (mk "Cache-Control") "max-age=0"
   s <- getSelection ballotStyle race
   render (p (ballotStepView strings (nav ballotStyle race) race s))
   where
-    p = page (localize "star_terminal" strings)
     nav style race = NavLinks
       { _prev = ((stepUrl (_bId style)) . _rId) <$> prevRace style race
       , _next = Just (nextStepUrl style race)
@@ -54,19 +51,20 @@ recordBallotSelection = do
 
 showSummary :: Snap ()
 showSummary = do
-  mBId    <- param "ballotId"
-  mBallot <- maybe pass getBallot mBId
-  case params mBId mBallot of
-    Just (style, ballot) ->
-      render (p (summaryView strings style ballot))
-    Nothing -> pass
-  where
-    params mBId mBallot = do
-      bId    <- mBId
-      style  <- BS.lookup bId ballotStyles
-      ballot <- mBallot
-      return (style, ballot)
-    p = page (localize "star_terminal" strings)
+  (style, ballot) <- ballotParams
+  render (p (summaryView strings style ballot))
+
+finalize :: Snap ()
+finalize = do
+  (style, ballot) <- ballotParams
+  -- transmit ballot
+  redirect (e (exitInstructionsUrl style))
+
+exitInstructions :: Snap ()
+exitInstructions = render (p (exitInstructionsView strings))
+
+transmit :: Ballot -> IO ()
+transmit = undefined -- TODO
 
 ballotStepParams :: Snap (BallotStyle, Race)
 ballotStepParams = do
@@ -80,6 +78,18 @@ ballotStepParams = do
       style  <- BS.lookup bId ballotStyles
       race   <- bRace rId style
       return (style, race)
+
+ballotParams :: Snap (BallotStyle, Ballot)
+ballotParams = do
+  mBId    <- param "ballotId"
+  mBallot <- maybe pass getBallot mBId
+  maybe pass return (params mBId mBallot)
+  where
+    params mBId mBallot = do
+      bId    <- mBId
+      style  <- BS.lookup bId ballotStyles
+      ballot <- mBallot
+      return (style, ballot)
 
 getSelection :: MonadSnap m => BallotStyle -> Race -> m (Maybe Selection)
 getSelection style race = do
@@ -118,7 +128,10 @@ getBallot bId = do
       return $ ((,) race) <$> sel
 
 render :: Html -> Snap ()
-render = writeLBS . renderHtml
+render h = do
+  modifyResponse $ setContentType "text/html"
+                 . setHeader (mk "Cache-Control") "max-age=0"
+  writeLBS (renderHtml h)
 
 param :: MonadSnap m => Text -> m (Maybe Text)
 param k = do
@@ -131,14 +144,20 @@ e = encodeUtf8
 d :: ByteString -> Text
 d = decodeUtf8With ignore
 
+p :: Html -> Html
+p = page (localize "star_terminal" strings)
+
 strings :: Translations
 strings = translations
-  [ ("next_step", "next step")
+  [ ("collect_ballot_and_receipt", "Your completed ballot and receipt are printing now. To cast your vote, deposit your ballot into a ballot box. Keep the receipt - you can use it later to make sure that your vote was counted.")
+  , ("next_step", "next step")
   , ("previous_step", "previous step")
+  , ("print_ballot", "print ballot to proceed")
   , ("select_candidate", "Please select a candidate")
   , ("show_progress", "show progress")
   , ("star_terminal", "STAR Terminal")
   , ("submit", "Submit")
+  , ("successful_vote", "You voted!")
   , ("summary", "Review and finalize your selections")
   ]
 

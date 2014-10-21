@@ -17,5 +17,14 @@ nextStepUrl style race = case nextRace style race of
 firstStepUrl :: BallotStyle -> Text
 firstStepUrl style = stepUrl (_bId style) (_rId (head (bRaces style)))
 
+lastStepUrl :: BallotStyle -> Text
+lastStepUrl style = stepUrl (_bId style) (_rId (last (bRaces style)))
+
+progressUrl :: BallotStyle -> Maybe Race -> Text
+progressUrl style _ = T.concat ["/ballot/", _bId style, "/progress"]
+
 summaryUrl :: BallotStyle -> Text
 summaryUrl style = T.concat ["/ballot/", _bId style, "/summary"]
+
+exitInstructionsUrl :: BallotStyle -> Text
+exitInstructionsUrl style = T.concat ["/ballot/", _bId style, "/complete"]

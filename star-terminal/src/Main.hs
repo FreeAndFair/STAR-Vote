@@ -18,5 +18,7 @@ site =
           , ("ballot/:ballotId/step/:stepId", method POST recordBallotSelection)
           , ("ballot/:ballotId",              method GET  ballotHandler)
           , ("ballot/:ballotId/summary",      method GET  showSummary)
+          , ("ballot/:ballotId/summary",      method POST finalize)
+          , ("ballot/:ballotId/complete",     method GET  exitInstructions)
           ] <|>
     dir "static" (serveDirectory "static")
