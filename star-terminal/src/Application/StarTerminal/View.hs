@@ -61,7 +61,7 @@ selectionDescription o = do
 summaryView :: Translations -> BallotStyle -> Ballot -> Html
 summaryView ts bStyle ballot =
   H.form ! method "post" $ do
-    navSummary ts
+    navSummary ts bStyle
     div ! class_ "container" $ do
       div ! class_ "page-header" $ do
         h1 (t "summary" ts)
@@ -114,7 +114,7 @@ withNav ts navLinks c = navbar ts navLinks <> c
 
 navbar :: Translations -> NavLinks -> Html
 navbar ts navLinks =
-  topNav $ do
+  bottomNav $ do
     maybe mempty (\url -> navLink "navbar-left" url $ do
       H.span mempty ! class_ "glyphicon glyphicon-chevron-left"
       whitespace
@@ -129,15 +129,21 @@ navbar ts navLinks =
       t "show_progress" ts)
       (_index navLinks)
 
-navSummary :: Translations -> Html
-navSummary ts =
-  topNav $ do
+navSummary :: Translations -> BallotStyle -> Html
+navSummary ts bStyle =
+  bottomNav $ do
+    navLink "navbar-left" (lastStepUrl bStyle) $ do
+      H.span mempty ! class_ "glyphicon glyphicon-chevron-left"
+      whitespace
+      t "previous_step" ts
     button ! class_ "btn btn-default navbar-btn navbar-right" ! type_ "submit" $ do
       t "print_ballot" ts
+    navLink "navbar-left" (progressUrl bStyle Nothing) $ do
+      t "show_progress" ts
 
-topNav :: Html -> Html
-topNav c =
-  H.div ! class_ "navbar navbar-default navbar-fixed-top" ! role "navigation" $ H.div ! class_ "container" $ c
+bottomNav :: Html -> Html
+bottomNav c =
+  H.div ! class_ "navbar navbar-default navbar-fixed-bottom" ! role "navigation" $ H.div ! class_ "container" $ c
 
 navLink :: Text -> Text -> Html -> Html
 navLink classes url l =
