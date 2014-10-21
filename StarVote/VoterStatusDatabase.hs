@@ -29,9 +29,8 @@ import qualified Data.Text       as T
 -- method and path that should be used, together with any parameters that it
 -- takes marked by either "URI" for parameters that should go in the URI or
 -- "Body" for parameters that should go in the request body. The parameters are
--- decoded using UTF8 then parsed using read. In inputs, where we write (ID x),
--- we use the Integer instance of read and wrap it with an ID constructor
--- ourselves.
+-- decoded using UTF8 then parsed using read. The Read and Show instance for
+-- (ID x) is not the derived one; it is the Integer instance.
 -- GET   lookup           :: { voter :: URI  (ID Voter)                        } -> [ID Precinct]
 -- POST  initialize       :: { db    :: Body [(ID Voter, ID Precinct)]         } -> {- produces the empty string as output -}
 -- PATCH atomicSwapStatus :: { voter :: Body (ID Voter), status :: Body Status } -> Status
@@ -49,13 +48,13 @@ voterStatusDB dbRef = route
 	[ ("lookup", method GET . useURIParam "voter" $ \voter -> do
 		v <- atomically $ do
 			db <- readTVar dbRef
-			case M.lookup (ID voter) db of
+			case M.lookup voter db of
 				Nothing -> return []
 				Just p  -> snd <$> readTVar p
 		writeShow v
 	  )
 	, ("initialize", method POST . useBodyParam "db" $ \dbData -> do
-		db <- atomically . buildStatusDB . map (ID *** ID) $ dbData
+		db <- atomically $ buildStatusDB dbData
 		atomically (writeTVar dbRef db)
 	  )
 	, ("atomicSwapStatus", method PATCH
@@ -63,7 +62,7 @@ voterStatusDB dbRef = route
 	                       useBodyParam "status" $ \status -> do
 		cont <- atomically $ do
 			db <- readTVar dbRef
-			case M.lookup (ID voter) db of
+			case M.lookup voter db of
 				Just p -> do
 					(oldStatus, precincts) <- readTVar p
 					writeTVar p (status, precincts)
