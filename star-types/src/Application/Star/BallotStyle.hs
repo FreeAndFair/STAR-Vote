@@ -1,5 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Application.StarTerminal.BallotStyle where
+module Application.Star.BallotStyle where
 
 import qualified Data.List as List
 import           Data.Maybe (fromMaybe)

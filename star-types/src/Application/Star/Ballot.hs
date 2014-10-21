@@ -1,11 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Application.StarTerminal.Ballot where
+module Application.Star.Ballot where
 
 import           Data.Map.Lazy (Map)
 import qualified Data.Map.Lazy as Map
 import           Data.Text (Text)
 
-import           Application.StarTerminal.BallotStyle
+import           Application.Star.BallotStyle
 
 type Selection = Text
 

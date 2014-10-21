@@ -13,10 +13,10 @@ import qualified Text.Blaze.Html5.Attributes as A
 import           Text.Blaze.Internal (attribute)
 import           Prelude hiding (div)
 
-import           Application.StarTerminal.Ballot
-import qualified Application.StarTerminal.Ballot as Ballot
-import           Application.StarTerminal.BallotStyle
-import qualified Application.StarTerminal.BallotStyle as BS
+import           Application.Star.Ballot
+import qualified Application.Star.Ballot as Ballot
+import           Application.Star.BallotStyle
+import qualified Application.Star.BallotStyle as BS
 import           Application.StarTerminal.LinkHelper
 import           Application.StarTerminal.Localization
 

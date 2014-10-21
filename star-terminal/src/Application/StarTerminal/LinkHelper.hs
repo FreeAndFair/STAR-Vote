@@ -4,7 +4,7 @@ module Application.StarTerminal.LinkHelper where
 import           Data.Text (Text)
 import qualified Data.Text as T
 
-import           Application.StarTerminal.BallotStyle
+import           Application.Star.BallotStyle
 
 stepUrl :: BallotId -> RaceId -> Text
 stepUrl bId rId = T.concat ["/ballot/", bId, "/step/", rId]

@@ -13,10 +13,10 @@ import           Snap.Core
 import           Text.Blaze.Html5 (Html)
 import           Text.Blaze.Html.Renderer.Utf8 (renderHtml)
 
-import           Application.StarTerminal.Ballot
-import qualified Application.StarTerminal.Ballot as Ballot
-import           Application.StarTerminal.BallotStyle
-import qualified Application.StarTerminal.BallotStyle as BS
+import           Application.Star.Ballot
+import qualified Application.Star.Ballot as Ballot
+import           Application.Star.BallotStyle
+import qualified Application.Star.BallotStyle as BS
 import           Application.StarTerminal.LinkHelper
 import           Application.StarTerminal.Localization
 import           Application.StarTerminal.View
@@ -146,7 +146,8 @@ ballotStyles :: BallotStyles
 ballotStyles =
   [ BallotStyle
     { _bId = "oregon-2014"
-    , _bRaces = [ Race
+    , _bRaces =
+      [ Race
         { _rDescription = "Oregon Governor"
         , _rId = "gov"
         , _rOptions =
