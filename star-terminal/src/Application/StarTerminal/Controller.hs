@@ -6,15 +6,20 @@ module Application.StarTerminal.Controller where
 
 import           Control.Applicative ((<$>))
 import           Control.Monad.Except (MonadError)
-import           Control.Monad.State (MonadState)
+import           Control.Monad.IO.Class (liftIO)
+import           Control.Monad.State (MonadState, get, put, state)
+import qualified Data.Aeson as JSON
 import           Data.ByteString (ByteString)
 import           Data.CaseInsensitive (mk)
 import           Data.List (foldl')
 import           Data.Maybe (catMaybes)
-import           Data.Text (Text)
+import           Data.Text (Text, pack)
 import           Data.Text.Encoding (decodeUtf8With, encodeUtf8)
 import           Data.Text.Encoding.Error (ignore)
-import           Snap.Core
+import qualified Data.UUID as UUID
+import           Network.HTTP.Client (Request(..), RequestBody(..), httpNoBody, parseUrl)
+import           Snap.Core hiding (method)
+import           System.Random (randomIO)
 import           Text.Blaze.Html5 (Html)
 import           Text.Blaze.Html.Renderer.Utf8 (renderHtml)
 
@@ -22,6 +27,7 @@ import           Application.Star.Ballot
 import qualified Application.Star.Ballot as Ballot
 import           Application.Star.BallotStyle
 import qualified Application.Star.BallotStyle as BS
+import           Application.Star.HashChain
 import           Application.StarTerminal.LinkHelper
 import           Application.StarTerminal.Localization
 import           Application.StarTerminal.View
@@ -65,14 +71,33 @@ showSummary = do
 finalize :: StarTerm m => m ()
 finalize = do
   (style, ballot) <- ballotParams
-  -- transmit ballot
+  ballotId        <- BallotId        . pack . UUID.toString <$> liftIO randomIO
+  ballotCastingId <- BallotCastingId . pack . UUID.toString <$> liftIO randomIO
+  tState          <- get
+  let term   = _terminal tState
+  let record = encryptRecord (_pubkey term)
+                             (_tId term)
+                             ballotId
+                             ballotCastingId
+                             (_zp0 term)
+                             (_zi0 term)
+                             ballot
+  state $ \s -> ((), s { _recordedVotes = record : _recordedVotes s })
+  liftIO $ transmit (_postUrl term) record
   redirect (e (exitInstructionsUrl style))
 
 exitInstructions :: StarTerm m => m ()
 exitInstructions = render (p (exitInstructionsView strings))
 
-transmit :: Ballot -> IO ()
-transmit = undefined -- TODO
+transmit :: String -> EncryptedRecord -> IO ()
+transmit url record = do
+  initReq <- parseUrl url
+  _ <- httpNoBody (request initReq) manager
+  return ()
+  where
+    body      = RequestBodyLBS (JSON.encode record)
+    request r = r { method = "POST", requestBody = body }
+    manager   = undefined  -- TODO
 
 ballotStepParams :: StarTerm m => m (BallotStyle, Race)
 ballotStepParams = do

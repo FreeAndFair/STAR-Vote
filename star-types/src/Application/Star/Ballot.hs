@@ -22,10 +22,9 @@ import           Application.Star.SerializableBS
 
 type Selection = Text
 
-newtype BallotId = BallotId SerializableBS
+newtype BallotId = Text
   deriving (Binary, FromJSON, ToJSON)
-
-newtype BallotCastingId = BallotCastingId SerializableBS
+newtype BallotCastingId = Text
   deriving (Binary, FromJSON, ToJSON)
 
 newtype Ballot = Ballot { _bMap :: Map BallotKey Selection }
