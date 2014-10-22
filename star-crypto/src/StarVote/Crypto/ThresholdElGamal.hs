@@ -28,7 +28,7 @@ buildKeyPair
   :: (CryptoRandomGen rng)
   => rng
   -> TEGParams
-  -> Either GenError (TEGPublicKey, TEGPrivateKey)
+  -> Either GenError ((TEGPublicKey, TEGPrivateKey), rng)
 buildKeyPair rng params = do
   let p = tegOrder params
       k = tegBits params
@@ -36,10 +36,10 @@ buildKeyPair rng params = do
       bl = div k 8
       lb = 1
       ub = p - 2
-  (privateExponent, _) <- crandomR (lb, ub) rng
+  (privateExponent, rng') <- crandomR (lb, ub) rng
   let publicKey  = TEGPublicKey  params (expMod p g privateExponent)
       privateKey = TEGPrivateKey params privateExponent
-  return (publicKey, privateKey)
+  return ((publicKey, privateKey), rng')
 
 -- ElGamal public-key encryption (Encryption).
 -- [HAC 295] Algorithm 8.18.1
@@ -48,7 +48,7 @@ encryptAsym
   => rng
   -> TEGPublicKey
   -> Integer
-  -> Either GenError TEGCipherText
+  -> Either GenError (TEGCipherText, rng)
 encryptAsym rng (TEGPublicKey params halfSecret) msg = do
   let p = tegOrder params
       k = tegBits params
@@ -56,12 +56,12 @@ encryptAsym rng (TEGPublicKey params halfSecret) msg = do
       bl = div k 8
       lb = 1
       ub = p - 2
-  (privateExponent, _) <- crandomR (lb, ub) rng
-  (privateExponent, _) <- crandomR (lb, ub) rng
+  (privateExponent, rng') <- crandomR (lb, ub) rng
+  (privateExponent, rng'') <- crandomR (lb, ub) rng'
 
   let gamma = expMod p g privateExponent
       delta = msg * (expMod p halfSecret privateExponent)
-  return $ TEGCipherText gamma delta
+  return (TEGCipherText gamma delta, rng'')
 
 -- ElGamal public-key encryption (Decryption).
 -- [HAC 295] Algorithm 8.18.2
@@ -79,9 +79,10 @@ decryptAsym pk c = mod (gamma' * delta) p
 
 -- Shamir's (t, n) threshold scheme (Setup)
 -- [HAC 526] Mechanism 12.71.1
+-- (!) Throws away rng due to use of `crandomRs`
 buildShares
   :: (CryptoRandomGen rng)
-  => rng
+  => rng        -- You will lose this!
   -> TEGParams
   -> Integer
   -> Shares
