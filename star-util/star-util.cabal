@@ -14,12 +14,12 @@ Library
   hs-source-dirs: src
   Exposed-modules:     Application.Star.Util
   Build-depends:        
-    base               >= 4     && < 5,
+    base                      >= 4     && < 5,
     bytestring,
     containers,
     data-default,
     MonadCatchIO-transformers,
-    mtl,
+    mtl                       >= 2.2.1,
     text,
     snap-core                 >= 0.9   && < 0.10,
     snap-server               >= 0.9   && < 0.10,
