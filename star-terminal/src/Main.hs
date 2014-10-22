@@ -16,7 +16,6 @@ import           Data.Text.Lazy.Encoding (encodeUtf8)
 import           Snap.Core
 import           Snap.Util.FileServe
 import           System.Environment (getEnv)
-import           System.Random (getStdGen)
 
 import           Application.Star.HashChain
 import           Application.Star.SerializableBS (SerializableBS(SB))
@@ -31,14 +30,13 @@ main = do
   zp     <- PublicHash   . decode 32            <$> getEnv "STAR_INIT_PUBLIC_HASH"
   zi     <- InternalHash . decode 32            <$> getEnv "STAR_INIT_INTERNAL_HASH"
   z0     <- B.encode     . decode 32            <$> getEnv "STAR_PUBLIC_SALT"
-  seed   <- getStdGen
   let term = Terminal { _tId    = tId
                       , _pubkey = pubkey
                       , _zp0    = zp
                       , _zi0    = zi
                       , _z0     = z0
                       }
-  statefulErrorServe site $ TerminalState def term seed
+  statefulErrorServe site $ TerminalState def term
 
 site :: StarTerm m => m ()
 site =
