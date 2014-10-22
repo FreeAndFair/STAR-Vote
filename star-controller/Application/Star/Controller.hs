@@ -12,6 +12,7 @@ provisionalCast :: VoterID -> PaperBallot -> DigitalBallotBox -> ProvisionalBall
 
 import Application.Star.Ballot
 import Application.Star.BallotStyle
+import Application.Star.HashChain
 import Application.Star.ID
 import Application.Star.Util
 import Application.Star.CommonImports hiding (method)
@@ -23,17 +24,17 @@ import qualified Data.Map as M
 
 type BallotDB = Map BallotCode (ID BallotStyle)
 data ControllerState = ControllerState
-	{ _outstandingBallots :: BallotDB
-	, _seed :: StdGen
-	} deriving (Read, Show)
-
+	{ _seed :: StdGen
+	, _outstandingBallots :: BallotDB
+	, _ballotBox :: [EncryptedRecord]
+	}
 
 makeLenses ''ControllerState
 
 main :: IO ()
 main = do
 	seed <- getStdGen
-	statefulErrorServe controller $ ControllerState def seed
+	statefulErrorServe controller $ ControllerState seed def def
 
 controller :: (MonadError Text m, MonadState ControllerState m, MonadSnap m) => m ()
 controller = route $
@@ -42,6 +43,11 @@ controller = route $
 		styleID <- readBodyParam "style"
 		code    <- generateCode styleID
 		writeShow code
+	  )
+	, ("fillOut", do
+		method POST
+		ballot <- readJSONBody
+		state' ballotBox (\box -> ((), ballot:box))
 	  )
 	]
 

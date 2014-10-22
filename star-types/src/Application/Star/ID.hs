@@ -1,9 +1,11 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 module Application.Star.ID where
 
 import Control.Arrow
 import Control.Applicative
+import Data.Aeson
 
-data ID a = ID { getID :: Integer } deriving (Eq, Ord)
+newtype ID a = ID { getID :: Integer } deriving (Eq, Ord, ToJSON, FromJSON)
 
 instance Num (ID a) where
   ID a + ID b = ID (a + b)

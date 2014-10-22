@@ -7,6 +7,7 @@ import Control.Monad.CatchIO
 import Control.Monad.Except
 import Control.Monad.Reader
 import Control.Monad.State
+import Data.Aeson
 import Data.ByteString (ByteString)
 import Data.Char
 import Data.Default
@@ -14,6 +15,7 @@ import Data.Monoid
 import Data.Text (Text)
 import Data.Text.Encoding
 import Snap.Core hiding (method)
+import Snap.Iteratee (TooManyBytesReadException)
 import Snap.Http.Server (quickHttpServe)
 import qualified Control.Concurrent.STM as STM
 import qualified Data.Map  as M
@@ -69,6 +71,17 @@ statefulErrorServe m s = do
 			Left err -> errorResponse err
 			Right v  -> return ()
 		)
+
+-- | This defaults to a maximum request body of one megabyte.
+readJSONBody :: (MonadSnap m, MonadError Text m, FromJSON a) => m a
+readJSONBody = do
+	r <- catch (readRequestBody maxRequestSize)
+	           (\_v -> const (throwError "request too large") (_v :: TooManyBytesReadException))
+	case decode r of
+		Just v  -> return v
+		Nothing -> throwError "error decoding JSON"
+	where
+	maxRequestSize = 1048576
 
 readParam :: (MonadError Text m, MonadSnap m, Read a) => (Request -> Params) -> ByteString -> m a
 readParam extractParams name = do
