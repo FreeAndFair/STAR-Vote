@@ -30,11 +30,13 @@ main = do
   zp     <- PublicHash   . decode 32            <$> getEnv "STAR_INIT_PUBLIC_HASH"
   zi     <- InternalHash . decode 32            <$> getEnv "STAR_INIT_INTERNAL_HASH"
   z0     <- B.encode     . decode 32            <$> getEnv "STAR_PUBLIC_SALT"
-  let term = Terminal { _tId    = tId
-                      , _pubkey = pubkey
-                      , _zp0    = zp
-                      , _zi0    = zi
-                      , _z0     = z0
+  url    <-                                         getEnv "STAR_POST_VOTE_URL"
+  let term = Terminal { _tId     = tId
+                      , _pubkey  = pubkey
+                      , _zp0     = zp
+                      , _zi0     = zi
+                      , _z0      = z0
+                      , _postUrl = url
                       }
   statefulErrorServe site $ TerminalState def term
 

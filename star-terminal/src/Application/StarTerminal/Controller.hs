@@ -7,7 +7,7 @@ module Application.StarTerminal.Controller where
 import           Control.Applicative ((<$>))
 import           Control.Monad.Except (MonadError)
 import           Control.Monad.IO.Class (liftIO)
-import           Control.Monad.State (MonadState, get, put, state)
+import           Control.Monad.State (MonadState, get, state)
 import qualified Data.Aeson as JSON
 import           Data.ByteString (ByteString)
 import           Data.CaseInsensitive (mk)
