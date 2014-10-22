@@ -19,6 +19,7 @@ Library
                        Application.Star.Mod,
                        Application.Star.Precinct,
                        Application.Star.Voter
+  Other-modules:       Application.Star.SerializableBS
   Build-depends:        
     aeson,
     base               >= 4     && < 5,

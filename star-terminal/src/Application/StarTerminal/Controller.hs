@@ -111,7 +111,7 @@ setSelection style race s = modifyResponse $ addResponseCookie (c s)
       , cookieHttpOnly = True
       }
 
-getBallot :: MonadSnap m => BallotId -> m (Maybe Ballot)
+getBallot :: MonadSnap m => BallotStyleId -> m (Maybe Ballot)
 getBallot bId = do
   case BS.lookup bId ballotStyles of
     Just style -> do

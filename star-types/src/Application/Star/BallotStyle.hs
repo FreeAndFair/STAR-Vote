@@ -6,7 +6,7 @@ import           Data.Maybe (fromMaybe)
 import           Data.Text (Text)
 import qualified Data.Text as T
 
-type BallotId = Text
+type BallotStyleId = Text
 type RaceId = Text
 type OptionId = Text
 type BallotStyles = [(BallotStyle)]
@@ -14,7 +14,7 @@ type BallotStyles = [(BallotStyle)]
 type BallotKey = Text
 
 data BallotStyle = BallotStyle
-  { _bId :: BallotId
+  { _bId :: BallotStyleId
   , _bRaces :: [Race]
   }
 
@@ -31,7 +31,7 @@ data Option = Option
   , _oOccupation :: Maybe Text
   }
 
-lookup :: BallotId -> BallotStyles -> Maybe BallotStyle
+lookup :: BallotStyleId -> BallotStyles -> Maybe BallotStyle
 lookup bId styles = safeHead (filter ((== bId) . _bId) styles)
 
 bRace :: RaceId -> BallotStyle -> Maybe Race
@@ -62,10 +62,10 @@ option optId race = safeHead (filter ((== optId) . _oId) (_rOptions race))
 key :: BallotStyle -> Race -> BallotKey
 key style race = key' (_bId style) (_rId race)
 
-key' :: BallotId -> RaceId -> BallotKey
+key' :: BallotStyleId -> RaceId -> BallotKey
 key' bId rId = T.concat [bId, "---", rId]
 
-fromKey :: BallotKey -> Maybe (BallotId, RaceId)
+fromKey :: BallotKey -> Maybe (BallotStyleId, RaceId)
 fromKey t = params
   where
     parts = T.splitOn "---" t

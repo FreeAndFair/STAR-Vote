@@ -1,6 +1,10 @@
-{-# LANGUAGE EmptyDataDecls, OverloadedStrings #-}
+{-# LANGUAGE EmptyDataDecls #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings #-}
+
 module Application.Star.Ballot where
 
+import           Data.Aeson (FromJSON, ToJSON)
 import           Data.Binary (Binary, get, put)
 import           Data.Binary.Get (getRemainingLazyByteString)
 import           Data.Binary.Put (putLazyByteString)
@@ -14,8 +18,15 @@ import qualified Data.Vector as Vector
 
 import           Application.Star.BallotStyle
 import           Application.Star.Mod
+import           Application.Star.SerializableBS
 
 type Selection = Text
+
+newtype BallotId = BallotId SerializableBS
+  deriving (Binary, FromJSON, ToJSON)
+
+newtype BallotCastingId = BallotCastingId SerializableBS
+  deriving (Binary, FromJSON, ToJSON)
 
 newtype Ballot = Ballot { _bMap :: Map BallotKey Selection }
 newtype RaceSelection = RaceSelection (BallotKey, Selection)

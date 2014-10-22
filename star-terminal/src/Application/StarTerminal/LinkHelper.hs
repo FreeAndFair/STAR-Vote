@@ -6,7 +6,7 @@ import qualified Data.Text as T
 
 import           Application.Star.BallotStyle
 
-stepUrl :: BallotId -> RaceId -> Text
+stepUrl :: BallotStyleId -> RaceId -> Text
 stepUrl bId rId = T.concat ["/ballot/", bId, "/step/", rId]
 
 nextStepUrl :: BallotStyle -> Race -> Text

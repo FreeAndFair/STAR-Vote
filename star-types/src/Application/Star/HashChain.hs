@@ -3,9 +3,7 @@
 {-# LANGUAGE TemplateHaskell #-}
 
 module Application.Star.HashChain
-  ( BallotId
-  , BallotCastingId
-  , Encrypted
+  ( Encrypted
   , EncryptedRecord (..)
   , InternalHash
   , PublicHash
@@ -17,38 +15,18 @@ module Application.Star.HashChain
   , publicHash
   ) where
 
-import           Data.Aeson (FromJSON, ToJSON, toJSON, parseJSON)
+import           Data.Aeson (FromJSON, ToJSON)
 import           Data.Aeson.TH (defaultOptions, deriveJSON)
 import           Data.Binary (Binary)
 import qualified Data.Binary as B
-import qualified Data.ByteString.Base64.Lazy as B64
 import           Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Lazy as BS
 import           Data.Digest.Pure.SHA (bytestringDigest, sha256)
 import           Data.List (foldl')
-import           Data.Monoid (Monoid, mempty)
-import           Data.Text.Lazy.Encoding (encodeUtf8, decodeUtf8)
+import           Data.Monoid (mempty)
 
 import           Application.Star.Ballot
-
-newtype SerializableBS = SB ByteString
-  deriving (Binary, Monoid)
-
-instance ToJSON SerializableBS where
-  toJSON (SB bs) = toJSON (decodeUtf8 (B64.encode bs))
-
-instance FromJSON SerializableBS where
-  parseJSON v = do
-    txt <- parseJSON v
-    case B64.decode (encodeUtf8 txt) of
-      Right bs -> return $ SB bs
-      Left err -> fail err
-
-newtype BallotId = BallotId SerializableBS
-  deriving (Binary, FromJSON, ToJSON)
-
-newtype BallotCastingId = BallotCastingId SerializableBS
-  deriving (Binary, FromJSON, ToJSON)
+import           Application.Star.SerializableBS
 
 newtype TerminalId = TerminalId SerializableBS
   deriving (Binary, FromJSON, ToJSON)
