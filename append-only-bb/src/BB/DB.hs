@@ -144,22 +144,6 @@ getKeypair conn = do [[pub, priv]] <- quickQuery conn "SELECT publickey, private
                      let (public, private) = (fromSql pub, fromSql priv)
                      return (read public, read private)
 
-
--- | Sign a message using the saved keypair, or die if it's not
--- there.
--- signMsg :: Connection -> ByteString -> IO Signature
--- signMsg conn msg =
---   do private <- fmap snd . getKeypair $ conn
---      g <- fmap cprgCreate createEntropyPool
---      return . fst $
---        sign (g :: SystemRNG) private (hashFunction hashDescrSHA256) msg
-
--- | Verify a signature using the saved keypair, or die if it's not there.
--- verifyBBSig :: Connection -> ByteString -> Signature -> IO Bool
--- verifyBBSig conn msg sig =
---   do public <- fmap fst . getKeypair $ conn
---      return $ verify (hashFunction hashDescrSHA256) public sig msg
-
 withSqlite3 :: FilePath -> (Connection -> IO a) -> IO a
 withSqlite3 db action = do conn <- connectSqlite3 db
                            x <- action conn
@@ -218,19 +202,6 @@ getHistory conn = do posts <- quickQuery conn q []
            }
     mkPost _ = error "SQL communication gave garbage"
 
-
-
--- | Return the last hash in the chain, the current server time, and a signature of these
--- signTimeHash :: Connection -> IO (String, UTCTime, Signature)
--- signTimeHash conn = do now <- getCurrentTime
---                        h <- fmap getHash $ quickQuery conn "SELECT hash FROM board ORDER BY timestamp DESC LIMIT 1;" []
---                        signature <- signMsg conn (UTF8.fromString h <> (UTF8.fromString . timeString) now)
---                        return (h, now, signature)
---   where
---     getHash :: [[SqlValue]] -> String
---     getHash [[h]] = fromSql h
---     getHash [] = "0"
---     getHash _ = error "SQL error in signTimeHash"
 
 addAuthor :: Connection
           -> Author

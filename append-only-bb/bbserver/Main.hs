@@ -25,6 +25,7 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Lazy as BL
 import Data.ByteString.Lazy.UTF8 as UTF8
 
+import qualified Data.HashMap.Strict as HashMap
 import Data.Monoid
 
 import Data.Time (UTCTime, getCurrentTime)
@@ -152,14 +153,12 @@ reset =
 -- | Get the last hash with a signed timestamp - step 1 in the posting process
 post1 :: BB ()
 post1 =
-  do CurrentHash (Signed (hash, t) sig) <-
-       withRandom $ \g -> withDB $ getCurrentHash g
+  do current <- withRandom $ \g -> withDB $ getCurrentHash g
      as <- authors
      now <- fmap timeString $ liftIO getCurrentTime
+     pubkey <- fmap fst $ withDB getKeypair
      render . page "Step 1: signed timestamp and hash" $ do
-       H.dl (mkDl [ ("hash", H.span ! A.id "the-hash" ! dataAttribute "hash" (toValue (show hash)) $ toHtml (show hash))
-                  , ("timestamp", toHtml (timeString t))
-                  , ("signature", H.pre . toHtml . UTF8.toString . Aeson.encode $ sig)])
+       renderCurrentHash pubkey current
        h2 "Post your message below:"
        H.form $ do
          H.label "Message"
@@ -188,7 +187,18 @@ post1 =
                      return . mconcat . map authorOption $ as
         authorOption (i, Author {authorName = n}) = H.option ! value (toValue n) $ toHtml n
 
-
+        renderCurrentHash :: PublicKey -> CurrentHash -> Html
+        renderCurrentHash pubkey current@(CurrentHash (Signed (hash, t) sig)) = do
+          H.dl (mkDl [ ("hash", H.span ! A.id "the-hash" ! dataAttribute "hash" (toValue (show hash)) $ toHtml (show hash))
+                     , ("timestamp", toHtml (timeString t))
+                     , ("signature", H.pre . toHtml . UTF8.toString . Aeson.encode $ sig)])
+          let msg = Aeson.toJSON current
+              pk  = Aeson.toJSON pubkey
+              cmd = Aeson.Object $ HashMap.fromList [ ("command", Aeson.String "verify-timestamp-sig")
+                                                    , ("timestamp-sig", msg)
+                                                    , ("public-key", pk)
+                                                    ]
+          pre . toHtml . decodeUtf8 . mconcat . BL.toChunks $ Aeson.encode cmd
 
 server :: FilePath -> BB ()
 server js =
