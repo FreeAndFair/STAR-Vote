@@ -1,16 +1,5 @@
 {-# LANGUAGE FlexibleContexts, FlexibleInstances, GeneralizedNewtypeDeriving, MultiParamTypeClasses, OverloadedStrings, UndecidableInstances #-}
-module Util
-	( module Control.Concurrent.STM
-	, module Control.Monad.Except
-	, module Control.Monad.Reader
-	, module Control.Monad.State
-	, module Data.Default
-	, module Data.Monoid
-	, module Snap
-	, module Util
-	, Text
-	, ByteString
-	) where
+module Application.Star.Util where
 
 import Control.Applicative
 import Control.Concurrent.STM hiding (atomically)
@@ -24,7 +13,8 @@ import Data.Default
 import Data.Monoid
 import Data.Text (Text)
 import Data.Text.Encoding
-import Snap hiding (method)
+import Snap.Core hiding (method)
+import Snap.Http.Server (quickHttpServe)
 import qualified Control.Concurrent.STM as STM
 import qualified Data.Map  as M
 import qualified Data.Text as T
