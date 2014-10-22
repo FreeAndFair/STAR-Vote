@@ -14,15 +14,23 @@ Library
   hs-source-dirs: src
   Exposed-modules:     Application.Star.Ballot,
                        Application.Star.BallotStyle,
+                       Application.Star.HashChain,
                        Application.Star.ID,
                        Application.Star.Mod,
                        Application.Star.Precinct,
                        Application.Star.Voter
   Build-depends:        
+    aeson,
     base               >= 4     && < 5,
+    base64-bytestring,
+    binary,
+    bytestring,
+    cassava,
     containers,
     random             >= 1     && < 2,
-    text
+    SHA,
+    text,
+    vector
 
   if impl(ghc >= 6.12.0)
     ghc-options: -threaded -Wall -fwarn-tabs -funbox-strict-fields -O2
