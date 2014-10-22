@@ -49,10 +49,12 @@ errorResponse err = modifyResponse (setResponseCode 400) >> writeText err
 writeShow :: (MonadSnap m, Show a) => a -> m ()
 writeShow = writeText . T.pack . show
 
-method :: (MonadPlus m, MonadSnap m) => Method -> m ()
-method m = do
-	req <- getRequest
-	guard (rqMethod req == m)
+method :: (MonadError Text m, MonadSnap m) => Method -> m ()
+method requested = do
+	actual <- rqMethod <$> getRequest
+	when (actual /= requested) . throwError
+		$  "Bad method, expected " <> (T.pack . show) requested
+		<> " but got "             <> (T.pack . show) actual
 
 -- TODO: don't store everything in memory
 statefulErrorServeDef :: Default s => TVarT s (ExceptT Text Snap) a -> IO ()
