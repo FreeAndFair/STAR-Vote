@@ -1,5 +1,5 @@
 {-# LANGUAGE FlexibleContexts, OverloadedStrings #-}
-module Controller where
+module Application.Star.Controller where
 
 {-
 generateCode :: Barcode BallotStyle -> BallotDB -> (BallotCode, BallotDB)
@@ -13,11 +13,11 @@ provisionalCast :: VoterID -> PaperBallot -> DigitalBallotBox -> ProvisionalBall
 import Application.Star.Ballot
 import Application.Star.BallotStyle
 import Application.Star.ID
+import Application.Star.Util
+import Application.Star.CommonImports hiding (method)
 import Control.Arrow
 import Control.Monad.CatchIO
-import Data.Map (Map)
 import System.Random
-import Util
 
 import qualified Data.Map as M
 
@@ -50,6 +50,7 @@ controller = route $
 
 -- generateCode generates a fresh code by first trying a few random codes; if
 -- that doesn't pan out, it searches all possible codes for any it could use
+-- {{{
 generateCode :: (MonadError Text m, MonadState ControllerState m) => ID BallotStyle -> m BallotCode
 generateCode style = freshRandom retries where
 	retries = 20 -- magic number picked out of a hat
@@ -77,6 +78,7 @@ registerCode code style db
 
 randomCode :: MonadState ControllerState m => m BallotCode
 randomCode = state' getSeed putSeed random
+-- }}}
 
 state' :: MonadState s m => (s -> s') -> (s' -> s -> s) -> (s' -> (a, s')) -> m a
 state' get put f = state (\s -> second (flip put s) (f (get s)))
