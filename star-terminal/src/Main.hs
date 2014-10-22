@@ -5,8 +5,7 @@
 module Main where
 
 import           Control.Applicative
-import           Crypto.Scrypt (getSalt, newSalt)
-import           Data.Binary (encode)
+import qualified Data.Binary as B
 import           Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Lazy as BS
 import qualified Data.ByteString.Base16.Lazy as B16
@@ -28,10 +27,10 @@ import           Application.StarTerminal.State (Terminal(..), TerminalState(..)
 main :: IO ()
 main = do
   tId    <- TerminalId . SB . encodeUtf8 . pack <$> getEnv "STAR_TERMINAL_ID"
-  pubkey <- decode' <$> getEnv "STAR_PUBLIC_KEY"
-  zp     <- PublicHash   . decode 32 <$> getEnv "STAR_INIT_PUBLIC_HASH"
-  zi     <- InternalHash . decode 32 <$> getEnv "STAR_INIT_INTERNAL_HASH"
-  z0     <- encode <$> getSalt <$> newSalt
+  pubkey <- decode'                             <$> getEnv "STAR_PUBLIC_KEY"
+  zp     <- PublicHash   . decode 32            <$> getEnv "STAR_INIT_PUBLIC_HASH"
+  zi     <- InternalHash . decode 32            <$> getEnv "STAR_INIT_INTERNAL_HASH"
+  z0     <- B.encode     . decode 32            <$> getEnv "STAR_PUBLIC_SALT"
   seed   <- getStdGen
   let term = Terminal { _tId    = tId
                       , _pubkey = pubkey
