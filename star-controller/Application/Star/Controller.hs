@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts, OverloadedStrings, Rank2Types, TemplateHaskell #-}
 module Application.Star.Controller where
 
 {-
@@ -16,7 +16,7 @@ import Application.Star.ID
 import Application.Star.Util
 import Application.Star.CommonImports hiding (method)
 import Control.Arrow
-import Control.Monad.CatchIO
+import Control.Lens
 import System.Random
 
 import qualified Data.Map as M
@@ -27,11 +27,8 @@ data ControllerState = ControllerState
 	, _seed :: StdGen
 	} deriving (Read, Show)
 
--- TODO: lens
-getOutstandingBallots = _outstandingBallots
-putOutstandingBallots new s = s { _outstandingBallots = new }
-getSeed = _seed
-putSeed new s = s { _seed = new }
+
+makeLenses ''ControllerState
 
 main :: IO ()
 main = do
@@ -57,13 +54,13 @@ generateCode style = freshRandom retries where
 	freshRandom n
 		| n > 0 = do
 			c <- randomCode
-			success <- state' getOutstandingBallots putOutstandingBallots (registerCode c style)
+			success <- state' outstandingBallots (registerCode c style)
 			if success then return c else freshRandom (n-1)
 		| otherwise = freshSearch
 	freshSearch = minimalCode style
 
 minimalCode :: (MonadError Text m, MonadState ControllerState m) => ID BallotStyle -> m BallotCode
-minimalCode style = join $ state' getOutstandingBallots putOutstandingBallots go where
+minimalCode style = join $ state' outstandingBallots go where
 	go db = case M.minView (M.difference allCodes db) of
 		Just (code, _) -> (return code, M.insert code style db)
 		Nothing        -> (throwError "all ballot codes in use", db)
@@ -77,8 +74,8 @@ registerCode code style db
 	| otherwise = (False, db)
 
 randomCode :: MonadState ControllerState m => m BallotCode
-randomCode = state' getSeed putSeed random
+randomCode = state' seed random
 -- }}}
 
-state' :: MonadState s m => (s -> s') -> (s' -> s -> s) -> (s' -> (a, s')) -> m a
-state' get put f = state (\s -> second (flip put s) (f (get s)))
+state' :: MonadState s m => Lens s s t t -> (t -> (a, t)) -> m a
+state' lens f = state (\s -> second (flip (set lens) s) (f (view lens s)))
