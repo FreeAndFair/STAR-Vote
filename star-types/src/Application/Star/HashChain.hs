@@ -5,9 +5,11 @@
 module Application.Star.HashChain
   ( Encrypted
   , EncryptedRecord (..)
-  , InternalHash
-  , PublicHash
-  , TerminalId
+  , InternalHash (..)
+  , Proof
+  , PublicHash (..)
+  , PublicKey (..)
+  , TerminalId (..)
   , encryptBallot
   , encryptRaces
   , encryptRecord
