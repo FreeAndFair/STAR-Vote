@@ -5,7 +5,6 @@
 module Main where
 
 import           Control.Applicative
-import qualified Data.Binary as B
 import           Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Lazy as BS
 import qualified Data.ByteString.Base16.Lazy as B16
@@ -18,7 +17,7 @@ import           Snap.Util.FileServe
 import           System.Environment (getEnv)
 
 import           Application.Star.HashChain
-import           Application.Star.SerializableBS (SerializableBS(SB))
+import           Application.Star.SerializableBS (SerializableBS(SB), fromSB)
 import           Application.Star.Util (statefulErrorServe)
 import           Application.StarTerminal.Controller
 import           Application.StarTerminal.State (Terminal(..), TerminalState(..))
@@ -29,7 +28,7 @@ main = do
   pubkey <- decode'                             <$> getEnv "STAR_PUBLIC_KEY"
   zp     <- PublicHash   . decode 32            <$> getEnv "STAR_INIT_PUBLIC_HASH"
   zi     <- InternalHash . decode 32            <$> getEnv "STAR_INIT_INTERNAL_HASH"
-  z0     <- B.encode     . decode 32            <$> getEnv "STAR_PUBLIC_SALT"
+  z0     <- fromSB       . decode 32            <$> getEnv "STAR_PUBLIC_SALT"
   url    <-                                         getEnv "STAR_POST_VOTE_URL"
   let term = Terminal { _tId     = tId
                       , _pubkey  = pubkey
@@ -43,12 +42,12 @@ main = do
 site :: StarTerm m => m ()
 site =
     -- ifTop (formHandler) <|>
-    route [ ("ballots/:ballotId/step/:stepId", method GET  showBallotStep)
-          , ("ballots/:ballotId/step/:stepId", method POST recordBallotSelection)
-          , ("ballots/:ballotId",              method GET  ballotHandler)
-          , ("ballots/:ballotId/summary",      method GET  showSummary)
-          , ("ballots/:ballotId/summary",      method POST finalize)
-          , ("ballots/:ballotId/complete",     method GET  exitInstructions)
+    route [ ("ballots/:code/step/:stepId", method GET  showBallotStep)
+          , ("ballots/:code/step/:stepId", method POST recordBallotSelection)
+          , ("ballots/:code",              method GET  ballotHandler)
+          , ("ballots/:code/summary",      method GET  showSummary)
+          , ("ballots/:code/summary",      method POST finalize)
+          , ("ballots/:code/complete",     method GET  exitInstructions)
           , ("ballots/:ballotId/codes/:code",  method POST recordBallotStyleCode)
           ] <|>
     dir "static" (serveDirectory "static")

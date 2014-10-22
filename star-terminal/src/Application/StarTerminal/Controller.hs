@@ -13,8 +13,7 @@ import qualified Data.Aeson as JSON
 import           Data.ByteString (ByteString)
 import           Data.CaseInsensitive (mk)
 import           Data.List (foldl')
-import           Data.Maybe (catMaybes, fromJust, fromMaybe, isNothing)
-import           Data.Monoid (mempty)
+import           Data.Maybe (catMaybes, fromJust, isNothing)
 import           Data.Text (Text, pack)
 import qualified Data.Text as T
 import           Data.Text.Encoding (decodeUtf8With, encodeUtf8)
@@ -41,20 +40,21 @@ type StarTerm m = (MonadError Text m, MonadState TerminalState m, MonadSnap m)
 recordBallotStyleCode :: StarTerm m => m ()
 recordBallotStyleCode = do
   ballotId  <- param "ballotId"
-  code      <- param "code"
+  code      <- paramR "code"
   let style = ballotId >>= flip BS.lookup ballotStyles
   when (isNothing style) $ do
     modifyResponse $ setResponseStatus 404 "Not Found"
     getResponse >>= finishWith
-  when (isNothing code || T.length (fromMaybe mempty code) < 5) $ do
+  when (isNothing code) $ do
     modifyResponse $ setResponseStatus 400 "Bad Request"
     getResponse >>= finishWith
   state $ ((,) ()) . insertCode (fromJust code) (fromJust style)
 
 ballotHandler :: StarTerm m => m ()
 ballotHandler = do
-  ballotId <- param "ballotId"
-  let style = ballotId >>= flip BS.lookup ballotStyles
+  code   <- paramR "code"
+  tState <- get
+  let style = code >>= flip lookupBallotStyle tState
   maybe pass (\s -> redirect (e (firstStepUrl s))) style
 
 showBallotStep :: StarTerm m => m ()
@@ -117,26 +117,28 @@ transmit url record = do
 
 ballotStepParams :: StarTerm m => m (BallotStyle, Race)
 ballotStepParams = do
-  ballotId <- param "ballotId"
-  raceId   <- param "stepId"
-  maybe pass return (params ballotId raceId)
+  code   <- paramR "code"
+  raceId <- param "stepId"
+  tState <- get
+  maybe pass return (params code raceId tState)
   where
-    params mBId mRId = do
-      bId    <- mBId
+    params mCode mRId s = do
+      code   <- mCode
       rId    <- mRId
-      style  <- BS.lookup bId ballotStyles
+      style  <- lookupBallotStyle code s
       race   <- bRace rId style
       return (style, race)
 
 ballotParams :: StarTerm m => m (BallotStyle, Ballot)
 ballotParams = do
-  mBId    <- param "ballotId"
-  mBallot <- maybe pass getBallot mBId
-  maybe pass return (params mBId mBallot)
+  code    <- paramR "code"
+  mBallot <- maybe pass getBallot code
+  tState  <- get
+  maybe pass return (params code mBallot tState)
   where
-    params mBId mBallot = do
-      bId    <- mBId
-      style  <- BS.lookup bId ballotStyles
+    params mCode mBallot s = do
+      code   <- mCode
+      style  <- lookupBallotStyle code s
       ballot <- mBallot
       return (style, ballot)
 
@@ -160,9 +162,10 @@ setSelection style race s = modifyResponse $ addResponseCookie (c s)
       , cookieHttpOnly = True
       }
 
-getBallot :: StarTerm m => BallotStyleId -> m (Maybe Ballot)
-getBallot bId = do
-  case BS.lookup bId ballotStyles of
+getBallot :: StarTerm m => BallotCode -> m (Maybe Ballot)
+getBallot code = do
+  tState <- get
+  case lookupBallotStyle code tState of
     Just style -> do
       selections <- mapM (getSel style) (bRaces style)
       let selections' = catMaybes selections
@@ -186,6 +189,11 @@ param :: StarTerm m => Text -> m (Maybe Text)
 param k = do
   p <- getParam (encodeUtf8 k)
   return $ fmap (decodeUtf8With ignore) p
+
+paramR :: (StarTerm m, Read a) => Text -> m (Maybe a)
+paramR k = do
+  p <- param k
+  return $ (read . T.unpack) <$> p
 
 e :: Text -> ByteString
 e = encodeUtf8

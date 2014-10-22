@@ -5,12 +5,10 @@ module Application.StarTerminal.State where
 import           Data.ByteString.Lazy (ByteString)
 import           Data.Map (Map)
 import qualified Data.Map as Map
-import           Data.Text (Text)
 
 import           Application.Star.HashChain
+import           Application.Star.Ballot
 import           Application.Star.BallotStyle
-
-type BallotCode = Text
 
 data TerminalState = TerminalState
   { _recordedVotes :: [EncryptedRecord]
@@ -32,3 +30,6 @@ insertCode code style s = s { _ballotCodes = codes' }
   where
     codes  = _ballotCodes s
     codes' = Map.insert code style codes
+
+lookupBallotStyle :: BallotCode -> TerminalState -> Maybe BallotStyle
+lookupBallotStyle code s = Map.lookup code (_ballotCodes s)
