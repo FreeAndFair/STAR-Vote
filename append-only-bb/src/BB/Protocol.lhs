@@ -50,6 +50,7 @@ For purposes of the communication protocol, all hashes are ByteStrings
 Signatures and verifications
 
 > data Signed a = Signed { message :: a, signature :: ECDSA.Signature }
+>   deriving Show
 >
 > sign :: (CPRG g, Byteable a) => g -> ECDSA.PrivateKey -> a -> (Signed a, g)
 > sign g priv x = let (signature, g') =
@@ -221,12 +222,12 @@ The writer sends the message to the board. Accompanying this is:
  4. A signature for the hash proving that the writer intends to append this message
 
 > prepareMessage :: (CPRG g, Byteable msg, Byteable writer)
->                => g -- ^ Random state
+>                => g                -- ^ Random state
 >                -> ECDSA.PrivateKey -- ^ The writer's private key
->                -> msg   -- ^ the message
->                -> UTCTime -- ^ the time of writing
->                -> writer  -- ^ the writer's name
->                -> Hash    -- ^ the previous end-of-chain hash
+>                -> msg              -- ^ the message
+>                -> UTCTime          -- ^ the time of writing
+>                -> writer           -- ^ the writer's name
+>                -> Hash             -- ^ the previous end-of-chain hash
 >                -> ((msg, UTCTime, writer, Signed Hash), g)
 > prepareMessage g k message tw w h =
 >   let h'           = toBytes $ sha256 (message, tw, w)

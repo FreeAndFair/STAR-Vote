@@ -159,6 +159,7 @@ post1 =
      pubkey <- fmap fst $ withDB getKeypair
      render . page "Step 1: signed timestamp and hash" $ do
        renderCurrentHash pubkey current
+       p "Remember to verify this before posting."
        h2 "Post your message below:"
        H.form $ do
          H.label "Message"

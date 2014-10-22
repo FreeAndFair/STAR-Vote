@@ -26,7 +26,7 @@ import Data.Map (Map)
 
 import Data.Text.Encoding (encodeUtf8)
 
-import Data.Time (UTCTime, getCurrentTime)
+import Data.Time (NominalDiffTime, UTCTime, getCurrentTime)
 
 import qualified Data.Text as T
 
@@ -35,7 +35,8 @@ import System.Environment (getArgs)
 
 import Paths_append_only_bb
 
-
+epsilon :: NominalDiffTime
+epsilon = 30 -- seconds
 
 type Secrets = Map T.Text (PublicKey, PrivateKey)
 
@@ -44,6 +45,7 @@ type PublicInfo = Map T.Text PublicKey
 
 data ClientCmd = Keygen T.Text
                | VerifyTimestamp CurrentHash PublicKey
+               | SignMessage T.Text UTCTime T.Text Protocol.Hash
 
 instance FromJSON ClientCmd where
   parseJSON (Object v) =
@@ -55,6 +57,12 @@ instance FromJSON ClientCmd where
            VerifyTimestamp <$>
              v .: "timestamp-sig" <*>
              v .: "public-key"
+         "sign-timestamp" ->
+           SignMessage <$>
+             v .: "message" <*>
+             v .: "timestamp" <*>
+             v .: "author" <*>
+             v .: "oldhash"
          other              -> fail $ "Unknown command: " ++ other
   parseJSON _          = fail "Must be an object"
 
@@ -123,8 +131,14 @@ process ss pub (Keygen name) =
 
 process ss _ (VerifyTimestamp current k) =
   do now <- getCurrentTime
-     let epsilon = 30
      case Protocol.checkCurrentHash k now 30 current of
        Left err -> putStrLn $ "Couldn't verify: " ++ err
        Right () -> putStrLn $ "OK, proceed"
 
+process ss _ (SignMessage msg time author oldhash) =
+  case M.lookup author ss of
+    Just (_, priv) ->
+      do g <- (fmap cprgCreate createEntropyPool) :: IO SystemRNG
+         let (ready, g') = Protocol.prepareMessage g priv (encodeUtf8 msg) time (encodeUtf8 author) oldhash
+         print $ encode ready
+    Nothing -> error $ "No private key for " ++ show author
