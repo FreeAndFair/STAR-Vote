@@ -26,6 +26,19 @@ data NavLinks = NavLinks
   , _index :: Maybe Text
   }
 
+codeEntryView :: Translations -> Html
+codeEntryView ts =
+  div ! class_ "container" $ do
+    div ! class_ "page-header" $ do
+      h1 (t "enter_ballot_code" ts)
+    H.form ! role "form" ! A.method "get" $ do
+      H.label $ do
+        t "ballot_code_label" ts
+        whitespace
+        input ! type_ "text" ! name "code"
+      H.button ! type_ "submit" ! class_ "btn btn-default" $ do
+        (t "submit" ts)
+
 ballotStepView :: Translations -> NavLinks -> Race -> Maybe Selection -> Html
 ballotStepView ts navLinks r s = withNav ts navLinks $
   div ! class_ "container" $ do

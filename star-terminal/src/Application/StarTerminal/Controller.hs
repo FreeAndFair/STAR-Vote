@@ -50,6 +50,15 @@ recordBallotStyleCode = do
     getResponse >>= finishWith
   state $ ((,) ()) . insertCode (fromJust code) (fromJust style)
 
+askForBallotCode :: StarTerm m => m ()
+askForBallotCode = do
+  mCode  <- paramR "code"
+  tState <- get
+  let mStyle = mCode >>= flip lookupBallotStyle tState
+  case mStyle of
+    Just style -> redirect (e (firstStepUrl style))
+    Nothing    -> render (p (codeEntryView strings))
+
 ballotHandler :: StarTerm m => m ()
 ballotHandler = do
   code   <- paramR "code"
@@ -206,7 +215,9 @@ p = page (localize "star_terminal" strings)
 
 strings :: Translations
 strings = translations
-  [ ("collect_ballot_and_receipt", "Your completed ballot and receipt are printing now. To cast your vote, deposit your ballot into a ballot box. Keep the receipt - you can use it later to make sure that your vote was counted.")
+  [ ("ballot_code_label", "Ballot code:")
+  , ("collect_ballot_and_receipt", "Your completed ballot and receipt are printing now. To cast your vote, deposit your ballot into a ballot box. Keep the receipt - you can use it later to make sure that your vote was counted.")
+  , ("enter_ballot_code", "Enter a ballot code to begin voting")
   , ("next_step", "next step")
   , ("previous_step", "previous step")
   , ("print_ballot", "print ballot to proceed")

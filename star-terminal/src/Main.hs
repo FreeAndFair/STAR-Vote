@@ -42,7 +42,8 @@ main = do
 site :: StarTerm m => m ()
 site =
     -- ifTop (formHandler) <|>
-    route [ ("ballots/:code/step/:stepId", method GET  showBallotStep)
+    route [ ("ballots",                    method GET  askForBallotCode)
+          , ("ballots/:code/step/:stepId", method GET  showBallotStep)
           , ("ballots/:code/step/:stepId", method POST recordBallotSelection)
           , ("ballots/:code",              method GET  ballotHandler)
           , ("ballots/:code/summary",      method GET  showSummary)
