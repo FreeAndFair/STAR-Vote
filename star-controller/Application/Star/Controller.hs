@@ -42,6 +42,7 @@ controller = route $
 		method POST
 		styleID <- readBodyParam "style"
 		code    <- generateCode styleID
+		-- TODO: broadcast (styleID, code) to voting terminals
 		writeShow code
 	  )
 	, ("fillOut", do
