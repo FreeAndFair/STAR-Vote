@@ -19,7 +19,7 @@ type BallotID = Integer -- unique and unpredictable
 data PaperBallot = PaperBallot
 	{ ballot :: Ballot
 	, castingID :: BallotCastingID
-	, id :: BallotID
+	, id :: BallotID -- aka serial number
 	}
 data Encrypted k a
 data Hash a
@@ -98,6 +98,9 @@ atomicSwapVoterStatus :: VoterID -> VoterStatus -> StatusDB -> (VoterStatus, Sta
 register :: VoterID -> Precinct -> RaceDB -> (Barcode BallotStyle, BookSticker)
 lookupPrecincts :: VoterID -> StatusDB -> NonEmpty Precinct
 
+-- poll book updates (non-computational, just encoded here for documentation)
+put :: BookSticker Book -> Book
+
 -- backup of the voter status database
 sign :: VoterID -> VoterSignature -> BookSticker -> Book -> Book
 
@@ -107,6 +110,7 @@ markAsFilledOut :: BallotCastingID -> Encrypted Trustees Ballot -> Receipt -> Di
 -- spoiling has some funny attack: maybe somebody could ask for a code for the wrong ballot style. what gives?
 spoil :: PaperBallot -> DigitalBallotBox -> BallotDB -> (BallotCode, BallotDB, DigitalBallotBox, PaperBallot)
 -- TODO: gc :: Time -> BallotDB -> BallotDB
+
 
 -- Voting terminal
 claimBallot :: BallotCode -> State ControllerState (ID BallotStyle)
@@ -120,6 +124,7 @@ review :: PaperBallot -> Sound
 
 -- Ballot box
 cast :: PaperBallot -> DigitalBallotBox -> PaperBallotBox -> (DigitalBallotBox, PaperBallotBox)
+scan :: PaperBallot -> BallotID
 provisionalCast :: VoterID -> PaperBallot -> DigitalBallotBox -> ProvisionalBallotBox -> (DigitalBallotBox, ProvisionalBallotBox)
 
 -- Bulletin board
