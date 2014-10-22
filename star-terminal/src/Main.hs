@@ -38,17 +38,18 @@ main = do
                       , _z0      = z0
                       , _postUrl = url
                       }
-  statefulErrorServe site $ TerminalState def term
+  statefulErrorServe site $ TerminalState def def term
 
 site :: StarTerm m => m ()
 site =
     -- ifTop (formHandler) <|>
-    route [ ("ballot/:ballotId/step/:stepId", method GET  showBallotStep)
-          , ("ballot/:ballotId/step/:stepId", method POST recordBallotSelection)
-          , ("ballot/:ballotId",              method GET  ballotHandler)
-          , ("ballot/:ballotId/summary",      method GET  showSummary)
-          , ("ballot/:ballotId/summary",      method POST finalize)
-          , ("ballot/:ballotId/complete",     method GET  exitInstructions)
+    route [ ("ballots/:ballotId/step/:stepId", method GET  showBallotStep)
+          , ("ballots/:ballotId/step/:stepId", method POST recordBallotSelection)
+          , ("ballots/:ballotId",              method GET  ballotHandler)
+          , ("ballots/:ballotId/summary",      method GET  showSummary)
+          , ("ballots/:ballotId/summary",      method POST finalize)
+          , ("ballots/:ballotId/complete",     method GET  exitInstructions)
+          , ("ballots/:ballotId/codes/:code",  method POST recordBallotStyleCode)
           ] <|>
     dir "static" (serveDirectory "static")
 

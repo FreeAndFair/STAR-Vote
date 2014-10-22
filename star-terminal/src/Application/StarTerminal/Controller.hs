@@ -5,6 +5,7 @@
 module Application.StarTerminal.Controller where
 
 import           Control.Applicative ((<$>))
+import           Control.Monad (when)
 import           Control.Monad.Except (MonadError)
 import           Control.Monad.IO.Class (liftIO)
 import           Control.Monad.State (MonadState, get, state)
@@ -12,8 +13,10 @@ import qualified Data.Aeson as JSON
 import           Data.ByteString (ByteString)
 import           Data.CaseInsensitive (mk)
 import           Data.List (foldl')
-import           Data.Maybe (catMaybes)
+import           Data.Maybe (catMaybes, fromJust, fromMaybe, isNothing)
+import           Data.Monoid (mempty)
 import           Data.Text (Text, pack)
+import qualified Data.Text as T
 import           Data.Text.Encoding (decodeUtf8With, encodeUtf8)
 import           Data.Text.Encoding.Error (ignore)
 import qualified Data.UUID as UUID
@@ -34,6 +37,19 @@ import           Application.StarTerminal.View
 import           Application.StarTerminal.State
 
 type StarTerm m = (MonadError Text m, MonadState TerminalState m, MonadSnap m)
+
+recordBallotStyleCode :: StarTerm m => m ()
+recordBallotStyleCode = do
+  ballotId  <- param "ballotId"
+  code      <- param "code"
+  let style = ballotId >>= flip BS.lookup ballotStyles
+  when (isNothing style) $ do
+    modifyResponse $ setResponseStatus 404 "Not Found"
+    getResponse >>= finishWith
+  when (isNothing code || T.length (fromMaybe mempty code) < 5) $ do
+    modifyResponse $ setResponseStatus 400 "Bad Request"
+    getResponse >>= finishWith
+  state $ ((,) ()) . insertCode (fromJust code) (fromJust style)
 
 ballotHandler :: StarTerm m => m ()
 ballotHandler = do
