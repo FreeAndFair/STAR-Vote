@@ -15,10 +15,13 @@ import Application.Star.BallotStyle
 import Application.Star.ID
 import Control.Arrow
 import Control.Monad.CatchIO
+import Data.Map (Map)
 import System.Random
 import Util
 
-type BallotDB = [(BallotCode, ID BallotStyle)]
+import qualified Data.Map as M
+
+type BallotDB = Map BallotCode (ID BallotStyle)
 data ControllerState = ControllerState
 	{ _outstandingBallots :: BallotDB
 	, _seed :: StdGen
@@ -56,12 +59,21 @@ generateCode style = freshRandom retries where
 			success <- state' getOutstandingBallots putOutstandingBallots (registerCode c style)
 			if success then return c else freshRandom (n-1)
 		| otherwise = freshSearch
-	freshSearch = throwError "couldn't find a fresh code" -- TODO: try harder
+	freshSearch = minimalCode style
+
+minimalCode :: (MonadError Text m, MonadState ControllerState m) => ID BallotStyle -> m BallotCode
+minimalCode style = join $ state' getOutstandingBallots putOutstandingBallots go where
+	go db = case M.minView (M.difference allCodes db) of
+		Just (code, _) -> (return code, M.insert code style db)
+		Nothing        -> (throwError "all ballot codes in use", db)
+
+allCodes :: Map BallotCode BallotCode
+allCodes = M.fromList [(k, k) | k <- [minBound..maxBound]]
 
 registerCode :: BallotCode -> ID BallotStyle -> BallotDB -> (Bool, BallotDB)
 registerCode code style db
-	| code `notElem` map fst db = (True, (code, style):db)
-	| otherwise                 = (False, db)
+	| not (code `M.member` db) = (True, M.insert code style db)
+	| otherwise = (False, db)
 
 randomCode :: MonadState ControllerState m => m BallotCode
 randomCode = state' getSeed putSeed random
