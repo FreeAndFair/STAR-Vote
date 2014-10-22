@@ -1,7 +1,12 @@
+{-# LANGUAGE ConstraintKinds #-}
+{-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
+
 module Application.StarTerminal.Controller where
 
 import           Control.Applicative ((<$>))
+import           Control.Monad.Except (MonadError)
+import           Control.Monad.State (MonadState)
 import           Data.ByteString (ByteString)
 import           Data.CaseInsensitive (mk)
 import           Data.List (foldl')
@@ -20,14 +25,17 @@ import qualified Application.Star.BallotStyle as BS
 import           Application.StarTerminal.LinkHelper
 import           Application.StarTerminal.Localization
 import           Application.StarTerminal.View
+import           Application.StarTerminal.State
 
-ballotHandler :: Snap ()
+type StarTerm m = (MonadError Text m, MonadState TerminalState m, MonadSnap m)
+
+ballotHandler :: StarTerm m => m ()
 ballotHandler = do
   ballotId <- param "ballotId"
   let style = ballotId >>= flip BS.lookup ballotStyles
   maybe pass (\s -> redirect (e (firstStepUrl s))) style
 
-showBallotStep :: Snap ()
+showBallotStep :: StarTerm m => m ()
 showBallotStep = do
   (ballotStyle, race) <- ballotStepParams
   s <- getSelection ballotStyle race
@@ -39,7 +47,7 @@ showBallotStep = do
       , _index = Nothing
       }
 
-recordBallotSelection :: Snap ()
+recordBallotSelection :: StarTerm m => m ()
 recordBallotSelection = do
   (style, race) <- ballotStepParams
   s <- getPostParam (e "selection")
@@ -49,24 +57,24 @@ recordBallotSelection = do
       redirect (e (nextStepUrl style race))
     Nothing -> pass
 
-showSummary :: Snap ()
+showSummary :: StarTerm m => m ()
 showSummary = do
   (style, ballot) <- ballotParams
   render (p (summaryView strings style ballot))
 
-finalize :: Snap ()
+finalize :: StarTerm m => m ()
 finalize = do
   (style, ballot) <- ballotParams
   -- transmit ballot
   redirect (e (exitInstructionsUrl style))
 
-exitInstructions :: Snap ()
+exitInstructions :: StarTerm m => m ()
 exitInstructions = render (p (exitInstructionsView strings))
 
 transmit :: Ballot -> IO ()
 transmit = undefined -- TODO
 
-ballotStepParams :: Snap (BallotStyle, Race)
+ballotStepParams :: StarTerm m => m (BallotStyle, Race)
 ballotStepParams = do
   ballotId <- param "ballotId"
   raceId   <- param "stepId"
@@ -79,7 +87,7 @@ ballotStepParams = do
       race   <- bRace rId style
       return (style, race)
 
-ballotParams :: Snap (BallotStyle, Ballot)
+ballotParams :: StarTerm m => m (BallotStyle, Ballot)
 ballotParams = do
   mBId    <- param "ballotId"
   mBallot <- maybe pass getBallot mBId
@@ -91,13 +99,13 @@ ballotParams = do
       ballot <- mBallot
       return (style, ballot)
 
-getSelection :: MonadSnap m => BallotStyle -> Race -> m (Maybe Selection)
+getSelection :: StarTerm m => BallotStyle -> Race -> m (Maybe Selection)
 getSelection style race = do
   let k = key style race
   c <- getCookie (e k)
   return $ (d . cookieValue) <$> c
 
-setSelection :: MonadSnap m => BallotStyle -> Race -> Selection -> m ()
+setSelection :: StarTerm m => BallotStyle -> Race -> Selection -> m ()
 setSelection style race s = modifyResponse $ addResponseCookie (c s)
   where
     k = key style race
@@ -111,7 +119,7 @@ setSelection style race s = modifyResponse $ addResponseCookie (c s)
       , cookieHttpOnly = True
       }
 
-getBallot :: MonadSnap m => BallotStyleId -> m (Maybe Ballot)
+getBallot :: StarTerm m => BallotStyleId -> m (Maybe Ballot)
 getBallot bId = do
   case BS.lookup bId ballotStyles of
     Just style -> do
@@ -127,13 +135,13 @@ getBallot bId = do
       sel <- getSelection style race
       return $ ((,) race) <$> sel
 
-render :: Html -> Snap ()
+render :: StarTerm m => Html -> m ()
 render h = do
   modifyResponse $ setContentType "text/html"
                  . setHeader (mk "Cache-Control") "max-age=0"
   writeLBS (renderHtml h)
 
-param :: MonadSnap m => Text -> m (Maybe Text)
+param :: StarTerm m => Text -> m (Maybe Text)
 param k = do
   p <- getParam (encodeUtf8 k)
   return $ fmap (decodeUtf8With ignore) p
