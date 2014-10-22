@@ -19,7 +19,9 @@ Library
                        Application.Star.Precinct,
                        Application.Star.Voter
   Build-depends:        
+    aeson,
     base               >= 4     && < 5,
+    base64-bytestring,
     binary,
     bytestring,
     cassava,

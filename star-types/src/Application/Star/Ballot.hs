@@ -28,6 +28,9 @@ insert k s (Ballot b) = Ballot (Map.insert k s b)
 empty :: Ballot
 empty = Ballot Map.empty
 
+races :: Ballot -> [RaceSelection]
+races (Ballot m) = map RaceSelection (Map.toAscList m)
+
 instance Binary Ballot where
   put (Ballot m) = putLazyByteString tsv
     where

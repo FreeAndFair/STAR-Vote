@@ -1,5 +1,6 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 module Application.Star.HashChain
   ( BallotId
@@ -11,39 +12,63 @@ module Application.Star.HashChain
   , TerminalId
   , encryptBallot
   , encryptRaces
+  , encryptRecord
   , internalHash
   , publicHash
   ) where
 
+import           Data.Aeson (FromJSON, ToJSON, toJSON, parseJSON)
+import           Data.Aeson.TH (defaultOptions, deriveJSON)
 import           Data.Binary (Binary)
 import qualified Data.Binary as B
+import qualified Data.ByteString.Base64.Lazy as B64
 import           Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Lazy as BS
-import           Data.Digest.Pure.SHA (SHA256State, Digest, sha256)
+import           Data.Digest.Pure.SHA (bytestringDigest, sha256)
 import           Data.List (foldl')
-import           Data.Monoid (mempty)
+import           Data.Monoid (Monoid, mempty)
+import           Data.Text.Lazy.Encoding (encodeUtf8, decodeUtf8)
 
 import           Application.Star.Ballot
 
-newtype BallotId = BallotId ByteString
-  deriving Binary
+newtype SerializableBS = SB ByteString
+  deriving (Binary, Monoid)
 
-newtype BallotCastingId = BallotCastingId ByteString
-  deriving Binary
+instance ToJSON SerializableBS where
+  toJSON (SB bs) = toJSON (decodeUtf8 (B64.encode bs))
 
-newtype TerminalId = TerminalId ByteString
-  deriving Binary
+instance FromJSON SerializableBS where
+  parseJSON v = do
+    txt <- parseJSON v
+    case B64.decode (encodeUtf8 txt) of
+      Right bs -> return $ SB bs
+      Left err -> fail err
 
-newtype Encrypted a = Encrypted ByteString
-  deriving Binary
+newtype BallotId = BallotId SerializableBS
+  deriving (Binary, FromJSON, ToJSON)
 
-newtype PublicHash = PublicHash (Digest SHA256State)
-  deriving Binary
+newtype BallotCastingId = BallotCastingId SerializableBS
+  deriving (Binary, FromJSON, ToJSON)
 
-newtype InternalHash = InternalHash (Digest SHA256State)
-  deriving Binary
+newtype TerminalId = TerminalId SerializableBS
+  deriving (Binary, FromJSON, ToJSON)
 
-type Hash a = Digest SHA256State
+newtype Encrypted a = Encrypted SerializableBS
+  deriving (Binary, FromJSON, ToJSON)
+
+newtype PublicHash = PublicHash SerializableBS
+  deriving (Binary, FromJSON, ToJSON)
+
+newtype InternalHash = InternalHash SerializableBS
+  deriving (Binary, FromJSON, ToJSON)
+
+type Hash a = SerializableBS
+
+-- TODO:
+newtype Proof a = Proof SerializableBS
+  deriving (Binary, FromJSON, ToJSON)
+newtype Ext a = Ext SerializableBS
+  deriving (Binary, FromJSON, ToJSON)
 
 data EncryptedRecord = EncryptedRecord
   { _bcid :: BallotCastingId
@@ -55,8 +80,32 @@ data EncryptedRecord = EncryptedRecord
   , _zi   :: InternalHash
   }
 
+$(deriveJSON defaultOptions ''EncryptedRecord)
+
+encryptRecord :: PublicKey
+              -> TerminalId
+              -> BallotId
+              -> BallotCastingId
+              -> PublicHash
+              -> InternalHash
+              -> Ballot
+              -> EncryptedRecord
+encryptRecord k m bid bcid zp' zi' ballot = EncryptedRecord
+  { _bcid = bcid
+  , _cv   = cv
+  , _pv   = pv
+  , _cbid = cbid
+  , _m    = m
+  , _zp   = publicHash bcid extCv pv m zp'
+  , _zi   = internalHash bcid cv pv cbid m zi'
+  }
+  where
+    (cv, pv) = encryptBallot k ballot
+    cbid     = encryptRaces k bid (races ballot)
+    extCv = Ext mempty  -- TODO
+
 encryptBallot :: PublicKey -> Ballot -> (Encrypted Ballot, Proof Ballot)
-encryptBallot k b = (Encrypted (encrypt k b), proof)
+encryptBallot k b = (Encrypted (SB (encrypt k b)), proof)
   where
     proof = Proof mempty -- TODO: not an actual proof
 
@@ -67,7 +116,7 @@ encryptRace :: PublicKey
             -> BallotId
             -> RaceSelection
             -> Encrypted (Hash RaceSelection)
-encryptRace k bid r = Encrypted $ encrypt k (hash (bid <||> r))
+encryptRace k bid r = Encrypted $ SB $ encrypt k (hash (bid <||> r))
 
 publicHash :: BallotCastingId
            -> Ext (Encrypted Ballot)
@@ -97,14 +146,8 @@ encrypt _ = id . B.encode  -- TODO: Worst. Encryption. Scheme. Ever.
 decrypt :: PrivateKey -> ByteString -> ByteString
 decrypt _ = id
 
-hash :: ByteString -> Digest SHA256State
-hash = sha256
+hash :: Binary a => a -> SerializableBS
+hash = SB . bytestringDigest . sha256 . B.encode
 
--- TODO:
-newtype Proof a = Proof ByteString
-  deriving Binary
-newtype Ext a = Ext ByteString
-  deriving Binary
-
-(<||>) :: (Binary a, Binary b) => a -> b -> ByteString
-x <||> y = BS.append (B.encode x) (B.encode y)
+(<||>) :: (Binary a, Binary b) => a -> b -> SerializableBS
+x <||> y = SB $ BS.append (B.encode x) (B.encode y)
