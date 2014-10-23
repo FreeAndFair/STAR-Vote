@@ -82,7 +82,7 @@ minimalCode = join $ state' ballotStyles go where
 		Nothing        -> (throwError "all ballot codes in use", db)
 
 allCodes :: Set BallotCode
-allCodes = S.fromList [k | k <- [minBound..maxBound]]
+allCodes = S.fromList [minBound..maxBound]
 
 registerCode :: BallotCode -> Set BallotCode -> (Bool, Set BallotCode)
 registerCode code db
