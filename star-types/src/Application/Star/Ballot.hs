@@ -26,7 +26,10 @@ newtype BallotId = BallotId SerializableBS
   deriving (Binary, FromJSON, ToJSON)
 
 newtype BallotCastingId = BallotCastingId SerializableBS
-  deriving (Binary, FromJSON, ToJSON)
+  deriving (Eq, Ord, Binary, Read, Show, FromJSON, ToJSON)
+
+data BallotStatus = Unknown | Spoiled | Cast
+  deriving (Bounded, Enum, Eq, Ord, Read, Show)
 
 newtype Ballot = Ballot { _bMap :: Map BallotKey Selection }
 newtype RaceSelection = RaceSelection (BallotKey, Selection)

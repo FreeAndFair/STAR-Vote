@@ -10,7 +10,7 @@ import           Data.Monoid (Monoid)
 import           Data.Text.Lazy.Encoding (encodeUtf8, decodeUtf8)
 
 newtype SerializableBS = SB ByteString
-  deriving (Binary, Monoid)
+  deriving (Eq, Ord, Read, Show, Binary, Monoid)
 
 instance ToJSON SerializableBS where
   toJSON (SB bs) = toJSON (decodeUtf8 (B64.encode bs))
