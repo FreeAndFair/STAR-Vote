@@ -30,7 +30,7 @@ type BallotDB = Map BallotCode (ID BallotStyle)
 type TMap k v = Map k (TVar v)
 data ControllerState = ControllerState
 	{ _seed :: StdGen
-	, _outstandingBallots :: BallotDB
+	, _ballotStyles :: BallotDB
 	-- ballotBox invariant: the bcid in the EncryptedRecord matches the key it's filed under in the Map
 	, _ballotBox :: TMap BallotCastingId (BallotStatus, EncryptedRecord)
 	}
@@ -72,13 +72,13 @@ generateCode style = freshRandom retries where
 	freshRandom n
 		| n > 0 = do
 			c <- randomCode
-			success <- state' outstandingBallots (registerCode c style)
+			success <- state' ballotStyles (registerCode c style)
 			if success then return c else freshRandom (n-1)
 		| otherwise = freshSearch
 	freshSearch = minimalCode style
 
 minimalCode :: (MonadError Text m, MonadState ControllerState m) => ID BallotStyle -> m BallotCode
-minimalCode style = join $ state' outstandingBallots go where
+minimalCode style = join $ state' ballotStyles go where
 	go db = case M.minView (M.difference allCodes db) of
 		Just (code, _) -> (return code, M.insert code style db)
 		Nothing        -> (throwError "all ballot codes in use", db)
