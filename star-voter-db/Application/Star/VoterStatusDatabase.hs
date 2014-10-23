@@ -32,12 +32,12 @@ type StatusDB  = TMap (ID Voter) (VoterStatus, [ID Precinct])
 main :: IO ()
 main = statefulErrorServeDef voterStatusDB
 
-voterStatusDB :: TVarT StatusDB (ExceptT Text Snap) ()
+voterStatusDB :: (MonadSnap m, MonadTransaction StatusDB m, MonadError Text m) => m ()
 voterStatusDB = route
 	[ ("lookup", do
 		method GET
 		voter <- readURIParam "voter"
-		v <- tvarT_ $ \db -> case M.lookup voter db of
+		v <- transaction_ $ \db -> case M.lookup voter db of
 			Nothing -> return []
 			Just p  -> snd <$> STM.readTVar p
 		writeShow v
@@ -52,7 +52,7 @@ voterStatusDB = route
 		method PATCH
 		voter  <- readBodyParam "voter"
 		status <- readBodyParam "status"
-		cont   <- tvarT_ $ \db -> case M.lookup voter db of
+		cont   <- transaction_ $ \db -> case M.lookup voter db of
 			Just p -> do
 				(oldStatus, precincts) <- STM.readTVar p
 				STM.writeTVar p (status, precincts)
