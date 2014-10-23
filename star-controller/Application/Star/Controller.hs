@@ -107,8 +107,8 @@ cast bcid = join . transaction_ $ \s -> do
 			(status, record) <- STM.readTVar p
 			case status of
 				Unknown -> STM.writeTVar p (Cast, record) >> return (return ())
-				_ -> return (throwError $ "ID " <> T.pack (show bcid) <> " was already " <> T.pack (map toLower (show status)))
-		_ -> return (throwError $ "Unknown ID " <> T.pack (show bcid))
+				_ -> return (throwError $ T.pack (show bcid) <> " was already " <> T.pack (map toLower (show status)))
+		_ -> return (throwError $ "Unknown " <> T.pack (show bcid))
 
 state' :: MonadState s m => Lens s s t t -> (t -> (a, t)) -> m a
 state' lens f = state (\s -> second (flip (set lens) s) (f (view lens s)))
