@@ -1,15 +1,6 @@
 {-# LANGUAGE FlexibleContexts, OverloadedStrings, Rank2Types, TemplateHaskell #-}
 module Application.Star.Controller where
 
-{-
-generateCode :: Barcode BallotStyle -> BallotDB -> (BallotCode, BallotDB)
-markAsFilledOut :: BallotCastingID -> Encrypted Trustees Ballot -> Receipt -> DigitalBallotBox -> DigitalBallotBox
-spoil :: PaperBallot -> DigitalBallotBox -> BallotDB -> (BallotCode, BallotDB, DigitalBallotBox, PaperBallot)
-claimBallot :: BallotCode -> State ControllerState (ID BallotStyle)
-cast :: PaperBallot -> DigitalBallotBox -> PaperBallotBox -> (DigitalBallotBox, PaperBallotBox)
-provisionalCast :: VoterID -> PaperBallot -> DigitalBallotBox -> ProvisionalBallotBox -> (DigitalBallotBox, ProvisionalBallotBox)
--}
-
 import Application.Star.Ballot
 import Application.Star.BallotStyle
 import Application.Star.HashChain
@@ -66,6 +57,7 @@ controller = route $
 		castingID <- BallotCastingId <$> readBodyParam "bcid"
 		setUnknownBallotTo Spoiled castingID
 	  )
+	-- TODO: provisional casting
 	]
 
 -- generateCode generates a fresh code by first trying a few random codes; if
