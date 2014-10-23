@@ -5,8 +5,6 @@
 module Main where
 
 import           Control.Applicative
-import           Crypto.Scrypt (getSalt, newSalt)
-import           Data.Binary (encode)
 import           Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Lazy as BS
 import qualified Data.ByteString.Base16.Lazy as B16
@@ -17,10 +15,9 @@ import           Data.Text.Lazy.Encoding (encodeUtf8)
 import           Snap.Core
 import           Snap.Util.FileServe
 import           System.Environment (getEnv)
-import           System.Random (getStdGen)
 
 import           Application.Star.HashChain
-import           Application.Star.SerializableBS (SerializableBS(SB))
+import           Application.Star.SerializableBS (SerializableBS(SB), fromSB)
 import           Application.Star.Util (statefulErrorServe)
 import           Application.StarTerminal.Controller
 import           Application.StarTerminal.State (Terminal(..), TerminalState(..))
@@ -28,28 +25,31 @@ import           Application.StarTerminal.State (Terminal(..), TerminalState(..)
 main :: IO ()
 main = do
   tId    <- TerminalId . SB . encodeUtf8 . pack <$> getEnv "STAR_TERMINAL_ID"
-  pubkey <- decode' <$> getEnv "STAR_PUBLIC_KEY"
-  zp     <- PublicHash   . decode 32 <$> getEnv "STAR_INIT_PUBLIC_HASH"
-  zi     <- InternalHash . decode 32 <$> getEnv "STAR_INIT_INTERNAL_HASH"
-  z0     <- encode <$> getSalt <$> newSalt
-  seed   <- getStdGen
-  let term = Terminal { _tId    = tId
-                      , _pubkey = pubkey
-                      , _zp0    = zp
-                      , _zi0    = zi
-                      , _z0     = z0
+  pubkey <- decode'                             <$> getEnv "STAR_PUBLIC_KEY"
+  zp     <- PublicHash   . decode 32            <$> getEnv "STAR_INIT_PUBLIC_HASH"
+  zi     <- InternalHash . decode 32            <$> getEnv "STAR_INIT_INTERNAL_HASH"
+  z0     <- fromSB       . decode 32            <$> getEnv "STAR_PUBLIC_SALT"
+  url    <-                                         getEnv "STAR_POST_VOTE_URL"
+  let term = Terminal { _tId     = tId
+                      , _pubkey  = pubkey
+                      , _zp0     = zp
+                      , _zi0     = zi
+                      , _z0      = z0
+                      , _postUrl = url
                       }
-  statefulErrorServe site $ TerminalState def term seed
+  statefulErrorServe site $ TerminalState def def term
 
 site :: StarTerm m => m ()
 site =
     -- ifTop (formHandler) <|>
-    route [ ("ballot/:ballotId/step/:stepId", method GET  showBallotStep)
-          , ("ballot/:ballotId/step/:stepId", method POST recordBallotSelection)
-          , ("ballot/:ballotId",              method GET  ballotHandler)
-          , ("ballot/:ballotId/summary",      method GET  showSummary)
-          , ("ballot/:ballotId/summary",      method POST finalize)
-          , ("ballot/:ballotId/complete",     method GET  exitInstructions)
+    route [ ("ballots",                    method GET  askForBallotCode)
+          , ("ballots/:code/step/:stepId", method GET  showBallotStep)
+          , ("ballots/:code/step/:stepId", method POST recordBallotSelection)
+          , ("ballots/:code",              method GET  ballotHandler)
+          , ("ballots/:code/summary",      method GET  showSummary)
+          , ("ballots/:code/summary",      method POST finalize)
+          , ("ballots/:code/complete",     method GET  exitInstructions)
+          , ("ballots/:ballotId/codes/:code",  method POST recordBallotStyleCode)
           ] <|>
     dir "static" (serveDirectory "static")
 

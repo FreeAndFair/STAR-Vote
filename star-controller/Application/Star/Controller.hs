@@ -58,7 +58,7 @@ controller = route $
 	  )
 	, ("cast", do
 		method POST
-		castingID <- BallotCastingId . SB <$> readBodyParam "bcid"
+		castingID <- BallotCastingId <$> readBodyParam "bcid"
 		cast castingID
 	  )
 	]

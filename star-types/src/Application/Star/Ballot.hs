@@ -6,6 +6,7 @@ module Application.Star.Ballot where
 
 import           Data.Aeson (FromJSON, ToJSON)
 import           Data.Binary (Binary, get, put)
+import qualified Data.Binary as B
 import           Data.Binary.Get (getRemainingLazyByteString)
 import           Data.Binary.Put (putLazyByteString)
 import           Data.Csv (DecodeOptions(..), EncodeOptions(..))
@@ -13,6 +14,8 @@ import qualified Data.Csv as CSV
 import           Data.Map (Map)
 import qualified Data.Map as Map
 import           Data.Text (Text)
+import           Data.Text.Lazy (fromStrict, toStrict)
+import           Data.Text.Lazy.Encoding (decodeUtf8, encodeUtf8)
 import           Data.Vector ((!?))
 import qualified Data.Vector as Vector
 
@@ -22,11 +25,10 @@ import           Application.Star.SerializableBS
 
 type Selection = Text
 
-newtype BallotId = BallotId SerializableBS
-  deriving (Binary, FromJSON, ToJSON)
-
-newtype BallotCastingId = BallotCastingId SerializableBS
-  deriving (Eq, Ord, Binary, Read, Show, FromJSON, ToJSON)
+newtype BallotId = BallotId Text
+  deriving (FromJSON, ToJSON)
+newtype BallotCastingId = BallotCastingId Text
+  deriving (Eq, Ord, Read, Show, FromJSON, ToJSON)
 
 data BallotStatus = Unknown | Spoiled | Cast
   deriving (Bounded, Enum, Eq, Ord, Read, Show)
@@ -50,6 +52,18 @@ type BallotCode = Mod HumanReadableLength
 
 races :: Ballot -> [RaceSelection]
 races (Ballot m) = map RaceSelection (Map.toAscList m)
+
+instance Binary BallotId where
+  put (BallotId txt) = putLazyByteString (encodeUtf8 (fromStrict (txt)))
+  get = do
+    bs <- getRemainingLazyByteString
+    return $ BallotId (toStrict (decodeUtf8 bs))
+
+instance Binary BallotCastingId where
+  put (BallotCastingId txt) = putLazyByteString (encodeUtf8 (fromStrict (txt)))
+  get = do
+    bs <- getRemainingLazyByteString
+    return $ BallotCastingId (toStrict (decodeUtf8 bs))
 
 instance Binary Ballot where
   put (Ballot m) = putLazyByteString tsv

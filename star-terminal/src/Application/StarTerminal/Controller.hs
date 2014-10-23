@@ -5,16 +5,23 @@
 module Application.StarTerminal.Controller where
 
 import           Control.Applicative ((<$>))
+import           Control.Monad (when)
 import           Control.Monad.Except (MonadError)
-import           Control.Monad.State (MonadState)
+import           Control.Monad.IO.Class (liftIO)
+import           Control.Monad.State (MonadState, get, state)
+import qualified Data.Aeson as JSON
 import           Data.ByteString (ByteString)
 import           Data.CaseInsensitive (mk)
 import           Data.List (foldl')
-import           Data.Maybe (catMaybes)
-import           Data.Text (Text)
+import           Data.Maybe (catMaybes, fromJust, isNothing)
+import           Data.Text (Text, pack)
+import qualified Data.Text as T
 import           Data.Text.Encoding (decodeUtf8With, encodeUtf8)
 import           Data.Text.Encoding.Error (ignore)
-import           Snap.Core
+import qualified Data.UUID as UUID
+import           Network.HTTP.Client (Request(..), RequestBody(..), httpNoBody, parseUrl)
+import           Snap.Core hiding (method)
+import           System.Random (randomIO)
 import           Text.Blaze.Html5 (Html)
 import           Text.Blaze.Html.Renderer.Utf8 (renderHtml)
 
@@ -22,6 +29,7 @@ import           Application.Star.Ballot
 import qualified Application.Star.Ballot as Ballot
 import           Application.Star.BallotStyle
 import qualified Application.Star.BallotStyle as BS
+import           Application.Star.HashChain
 import           Application.StarTerminal.LinkHelper
 import           Application.StarTerminal.Localization
 import           Application.StarTerminal.View
@@ -29,10 +37,33 @@ import           Application.StarTerminal.State
 
 type StarTerm m = (MonadError Text m, MonadState TerminalState m, MonadSnap m)
 
+recordBallotStyleCode :: StarTerm m => m ()
+recordBallotStyleCode = do
+  ballotId  <- param "ballotId"
+  code      <- paramR "code"
+  let style = ballotId >>= flip BS.lookup ballotStyles
+  when (isNothing style) $ do
+    modifyResponse $ setResponseStatus 404 "Not Found"
+    getResponse >>= finishWith
+  when (isNothing code) $ do
+    modifyResponse $ setResponseStatus 400 "Bad Request"
+    getResponse >>= finishWith
+  state $ ((,) ()) . insertCode (fromJust code) (fromJust style)
+
+askForBallotCode :: StarTerm m => m ()
+askForBallotCode = do
+  mCode  <- paramR "code"
+  tState <- get
+  let mStyle = mCode >>= flip lookupBallotStyle tState
+  case mStyle of
+    Just style -> redirect (e (firstStepUrl style))
+    Nothing    -> render (p (codeEntryView strings))
+
 ballotHandler :: StarTerm m => m ()
 ballotHandler = do
-  ballotId <- param "ballotId"
-  let style = ballotId >>= flip BS.lookup ballotStyles
+  code   <- paramR "code"
+  tState <- get
+  let style = code >>= flip lookupBallotStyle tState
   maybe pass (\s -> redirect (e (firstStepUrl s))) style
 
 showBallotStep :: StarTerm m => m ()
@@ -65,37 +96,58 @@ showSummary = do
 finalize :: StarTerm m => m ()
 finalize = do
   (style, ballot) <- ballotParams
-  -- transmit ballot
+  ballotId        <- BallotId        . pack . UUID.toString <$> liftIO randomIO
+  ballotCastingId <- BallotCastingId . pack . UUID.toString <$> liftIO randomIO
+  tState          <- get
+  let term   = _terminal tState
+  let record = encryptRecord (_pubkey term)
+                             (_tId term)
+                             ballotId
+                             ballotCastingId
+                             (_zp0 term)
+                             (_zi0 term)
+                             ballot
+  state $ \s -> ((), s { _recordedVotes = record : _recordedVotes s })
+  liftIO $ transmit (_postUrl term) record
   redirect (e (exitInstructionsUrl style))
 
 exitInstructions :: StarTerm m => m ()
 exitInstructions = render (p (exitInstructionsView strings))
 
-transmit :: Ballot -> IO ()
-transmit = undefined -- TODO
+transmit :: String -> EncryptedRecord -> IO ()
+transmit url record = do
+  initReq <- parseUrl url
+  _ <- httpNoBody (request initReq) manager
+  return ()
+  where
+    body      = RequestBodyLBS (JSON.encode record)
+    request r = r { method = "POST", requestBody = body }
+    manager   = undefined  -- TODO
 
 ballotStepParams :: StarTerm m => m (BallotStyle, Race)
 ballotStepParams = do
-  ballotId <- param "ballotId"
-  raceId   <- param "stepId"
-  maybe pass return (params ballotId raceId)
+  code   <- paramR "code"
+  raceId <- param "stepId"
+  tState <- get
+  maybe pass return (params code raceId tState)
   where
-    params mBId mRId = do
-      bId    <- mBId
+    params mCode mRId s = do
+      code   <- mCode
       rId    <- mRId
-      style  <- BS.lookup bId ballotStyles
+      style  <- lookupBallotStyle code s
       race   <- bRace rId style
       return (style, race)
 
 ballotParams :: StarTerm m => m (BallotStyle, Ballot)
 ballotParams = do
-  mBId    <- param "ballotId"
-  mBallot <- maybe pass getBallot mBId
-  maybe pass return (params mBId mBallot)
+  code    <- paramR "code"
+  mBallot <- maybe pass getBallot code
+  tState  <- get
+  maybe pass return (params code mBallot tState)
   where
-    params mBId mBallot = do
-      bId    <- mBId
-      style  <- BS.lookup bId ballotStyles
+    params mCode mBallot s = do
+      code   <- mCode
+      style  <- lookupBallotStyle code s
       ballot <- mBallot
       return (style, ballot)
 
@@ -119,9 +171,10 @@ setSelection style race s = modifyResponse $ addResponseCookie (c s)
       , cookieHttpOnly = True
       }
 
-getBallot :: StarTerm m => BallotStyleId -> m (Maybe Ballot)
-getBallot bId = do
-  case BS.lookup bId ballotStyles of
+getBallot :: StarTerm m => BallotCode -> m (Maybe Ballot)
+getBallot code = do
+  tState <- get
+  case lookupBallotStyle code tState of
     Just style -> do
       selections <- mapM (getSel style) (bRaces style)
       let selections' = catMaybes selections
@@ -146,6 +199,11 @@ param k = do
   p <- getParam (encodeUtf8 k)
   return $ fmap (decodeUtf8With ignore) p
 
+paramR :: (StarTerm m, Read a) => Text -> m (Maybe a)
+paramR k = do
+  p <- param k
+  return $ (read . T.unpack) <$> p
+
 e :: Text -> ByteString
 e = encodeUtf8
 
@@ -157,7 +215,9 @@ p = page (localize "star_terminal" strings)
 
 strings :: Translations
 strings = translations
-  [ ("collect_ballot_and_receipt", "Your completed ballot and receipt are printing now. To cast your vote, deposit your ballot into a ballot box. Keep the receipt - you can use it later to make sure that your vote was counted.")
+  [ ("ballot_code_label", "Ballot code:")
+  , ("collect_ballot_and_receipt", "Your completed ballot and receipt are printing now. To cast your vote, deposit your ballot into a ballot box. Keep the receipt - you can use it later to make sure that your vote was counted.")
+  , ("enter_ballot_code", "Enter a ballot code to begin voting")
   , ("next_step", "next step")
   , ("previous_step", "previous step")
   , ("print_ballot", "print ballot to proceed")
