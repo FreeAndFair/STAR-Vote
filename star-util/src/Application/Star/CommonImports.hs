@@ -9,6 +9,7 @@ module Application.Star.CommonImports
 	, module Snap
 	, ByteString
 	, Map
+	, Set
 	, STM
 	, Text
 	, TVar
@@ -26,4 +27,5 @@ import Snap
 import Control.Concurrent.STM (STM, TVar)
 import Data.ByteString (ByteString)
 import Data.Map (Map)
+import Data.Set (Set)
 import Data.Text (Text)

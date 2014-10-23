@@ -15,13 +15,13 @@ import System.Random
 
 import qualified Control.Concurrent.STM as STM
 import qualified Data.Map  as M
+import qualified Data.Set  as S
 import qualified Data.Text as T
 
-type BallotDB = Map BallotCode (ID BallotStyle)
 type TMap k v = Map k (TVar v)
 data ControllerState = ControllerState
 	{ _seed :: StdGen
-	, _ballotStyles :: BallotDB -- TODO: perhaps this should really be a Set BallotCode
+	, _ballotStyles :: Set BallotCode
 	-- ballotBox invariant: the bcid in the EncryptedRecord matches the key it's filed under in the Map
 	, _ballotBox :: TMap BallotCastingId (BallotStatus, EncryptedRecord)
 	}
@@ -38,8 +38,8 @@ controller = route $
 	[ ("generateCode", do
 		method POST
 		styleID <- readBodyParam "style"
-		code    <- generateCode styleID
-		-- TODO: broadcast (styleID, code) to voting terminals
+		code    <- generateCode
+		broadcast code styleID
 		writeShow code
 	  )
 	, ("fillOut", do
@@ -63,41 +63,45 @@ controller = route $
 -- generateCode generates a fresh code by first trying a few random codes; if
 -- that doesn't pan out, it searches all possible codes for any it could use
 -- {{{
-generateCode :: (MonadError Text m, MonadState ControllerState m) => ID BallotStyle -> m BallotCode
-generateCode style = freshRandom retries where
+generateCode :: (MonadError Text m, MonadState ControllerState m, Alternative m) => m BallotCode
+generateCode = randomCode retries <|> minimalCode where
 	retries = 20 -- magic number picked out of a hat
-	freshRandom n
-		| n > 0 = do
-			c <- randomCode
-			success <- state' ballotStyles (registerCode c style)
-			if success then return c else freshRandom (n-1)
-		| otherwise = freshSearch
-	freshSearch = minimalCode style
 
-minimalCode :: (MonadError Text m, MonadState ControllerState m) => ID BallotStyle -> m BallotCode
-minimalCode style = join $ state' ballotStyles go where
-	go db = case M.minView (M.difference allCodes db) of
-		Just (code, _) -> (return code, M.insert code style db)
+randomCode :: (MonadState ControllerState m, MonadError Text m) => Integer -> m BallotCode
+randomCode n
+	| n > 0 = do
+		c       <- state' seed random
+		success <- state' ballotStyles (registerCode c)
+		if success then return c else randomCode (n-1)
+	| otherwise = throwError "random code search exhausted without finding a fresh code"
+
+minimalCode :: (MonadError Text m, MonadState ControllerState m) => m BallotCode
+minimalCode = join $ state' ballotStyles go where
+	go db = case S.minView (S.difference allCodes db) of
+		Just (code, _) -> (return code, S.insert code db)
 		Nothing        -> (throwError "all ballot codes in use", db)
 
-allCodes :: Map BallotCode BallotCode
-allCodes = M.fromList [(k, k) | k <- [minBound..maxBound]]
+allCodes :: Set BallotCode
+allCodes = S.fromList [k | k <- [minBound..maxBound]]
 
-registerCode :: BallotCode -> ID BallotStyle -> BallotDB -> (Bool, BallotDB)
-registerCode code style db
-	| not (code `M.member` db) = (True, M.insert code style db)
+registerCode :: BallotCode -> Set BallotCode -> (Bool, Set BallotCode)
+registerCode code db
+	| not (code `S.member` db) = (True, S.insert code db)
 	| otherwise = (False, db)
-
-randomCode :: MonadState ControllerState m => m BallotCode
-randomCode = state' seed random
 -- }}}
 
+-- TODO
+broadcast :: MonadSnap m => BallotCode -> ID BallotStyle -> m ()
+broadcast code styleID = return ()
+
+fillOut :: EncryptedRecord -> ControllerState -> STM ((), ControllerState)
 fillOut ballot s = do
 	p <- STM.newTVar (Unknown, ballot)
 	-- TODO: is it okay to always insert? do we need to check that it
 	-- isn't there first or something?
 	return ((), set ballotBox (M.insert (_bcid ballot) p (_ballotBox s)) s)
 
+setUnknownBallotTo :: (MonadTransaction ControllerState m, MonadError Text m) => BallotStatus -> BallotCastingId -> m ()
 setUnknownBallotTo status bcid = join . transaction_ $ \s -> do
 	case M.lookup bcid (_ballotBox s) of
 		Just p -> do
