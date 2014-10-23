@@ -30,7 +30,7 @@ type BallotDB = Map BallotCode (ID BallotStyle)
 type TMap k v = Map k (TVar v)
 data ControllerState = ControllerState
 	{ _seed :: StdGen
-	, _ballotStyles :: BallotDB
+	, _ballotStyles :: BallotDB -- TODO: perhaps this should really be a Set BallotCode
 	-- ballotBox invariant: the bcid in the EncryptedRecord matches the key it's filed under in the Map
 	, _ballotBox :: TMap BallotCastingId (BallotStatus, EncryptedRecord)
 	}
@@ -59,7 +59,12 @@ controller = route $
 	, ("cast", do
 		method POST
 		castingID <- BallotCastingId <$> readBodyParam "bcid"
-		cast castingID
+		setUnknownBallotTo Cast castingID
+	  )
+	, ("spoil", do
+		method POST
+		castingID <- BallotCastingId <$> readBodyParam "bcid"
+		setUnknownBallotTo Spoiled castingID
 	  )
 	]
 
@@ -101,12 +106,12 @@ fillOut ballot s = do
 	-- isn't there first or something?
 	return ((), set ballotBox (M.insert (_bcid ballot) p (_ballotBox s)) s)
 
-cast bcid = join . transaction_ $ \s -> do
+setUnknownBallotTo status bcid = join . transaction_ $ \s -> do
 	case M.lookup bcid (_ballotBox s) of
 		Just p -> do
 			(status, record) <- STM.readTVar p
 			case status of
-				Unknown -> STM.writeTVar p (Cast, record) >> return (return ())
+				Unknown -> STM.writeTVar p (status, record) >> return (return ())
 				_ -> return (throwError $ T.pack (show bcid) <> " was already " <> T.pack (map toLower (show status)))
 		_ -> return (throwError $ "Unknown " <> T.pack (show bcid))
 
