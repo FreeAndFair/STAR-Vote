@@ -19,7 +19,12 @@ import qualified Data.Text as T
 import           Data.Text.Encoding (decodeUtf8With, encodeUtf8)
 import           Data.Text.Encoding.Error (ignore)
 import qualified Data.UUID as UUID
-import           Network.HTTP.Client (Request(..), RequestBody(..), httpNoBody, parseUrl)
+import           Network.HTTP.Client ( Request(..)
+                                     , RequestBody(..)
+                                     , httpNoBody
+                                     , parseUrl
+                                     , withManager )
+import           Network.HTTP.Client.TLS (tlsManagerSettings)
 import           Snap.Core hiding (method)
 import           System.Random (randomIO)
 import           Text.Blaze.Html5 (Html)
@@ -110,12 +115,12 @@ exitInstructions = render (pg (exitInstructionsView strings))
 transmit :: String -> EncryptedRecord -> IO ()
 transmit url record = do
   initReq <- parseUrl url
-  _ <- httpNoBody (request initReq) manager
+  _ <- withManager mgrSettings $ \mgr -> httpNoBody (request initReq) mgr
   return ()
   where
-    body      = RequestBodyLBS (JSON.encode record)
-    request r = r { method = "POST", requestBody = body }
-    manager   = undefined  -- TODO
+    body        = RequestBodyLBS (JSON.encode record)
+    request r   = r { method = "POST", requestBody = body }
+    mgrSettings = tlsManagerSettings
 
 ballotStepParams :: StarTerm m => m (BallotCode, BallotStyle, Race)
 ballotStepParams = do

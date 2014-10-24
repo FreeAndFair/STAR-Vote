@@ -26,6 +26,7 @@ Executable star-terminal
     containers,
     data-default,
     http-client,
+    http-client-tls,
     MonadCatchIO-transformers >= 0.2.1 && < 0.4,
     mtl                       >= 2     && < 3,
     random,
