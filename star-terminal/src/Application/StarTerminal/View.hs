@@ -164,8 +164,8 @@ navSummary ts code bStyle =
       t "previous_step" ts
     button ! class_ "btn btn-default navbar-btn navbar-right" ! type_ "submit" $ do
       t "print_ballot" ts
-    navLink "navbar-left" (progressUrl code Nothing) $ do
-      t "show_progress" ts
+    -- navLink "navbar-left" (progressUrl code Nothing) $ do
+    --   t "show_progress" ts
 
 bottomNav :: Html -> Html
 bottomNav c =
