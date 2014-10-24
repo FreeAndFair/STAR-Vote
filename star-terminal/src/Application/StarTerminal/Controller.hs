@@ -4,7 +4,7 @@
 
 module Application.StarTerminal.Controller where
 
-import           Control.Applicative ((<$>))
+import           Control.Applicative ((<$>), (<*>))
 import           Control.Monad (when)
 import           Control.Monad.Except (MonadError)
 import           Control.Monad.IO.Class (liftIO)
@@ -55,47 +55,40 @@ askForBallotCode = do
   mCode  <- paramR "code"
   tState <- get
   let mStyle = mCode >>= flip lookupBallotStyle tState
-  case mStyle of
-    Just style -> redirect (e (firstStepUrl style))
-    Nothing    -> render (p (codeEntryView strings))
-
-ballotHandler :: StarTerm m => m ()
-ballotHandler = do
-  code   <- paramR "code"
-  tState <- get
-  let style = code >>= flip lookupBallotStyle tState
-  maybe pass (\s -> redirect (e (firstStepUrl s))) style
+  case (,) <$> mCode <*> mStyle of
+    Just (code, style) -> redirect (e (firstStepUrl code style))
+    Nothing            -> render (pg (codeEntryView strings))
 
 showBallotStep :: StarTerm m => m ()
 showBallotStep = do
-  (ballotStyle, race) <- ballotStepParams
+  (code, ballotStyle, race) <- ballotStepParams
   s <- getSelection ballotStyle race
-  render (p (ballotStepView strings (nav ballotStyle race) race s))
+  render (pg (ballotStepView strings (nav code ballotStyle race) race s))
   where
-    nav style race = NavLinks
-      { _prev = ((stepUrl (_bId style)) . _rId) <$> prevRace style race
-      , _next = Just (nextStepUrl style race)
+    nav code style race = NavLinks
+      { _prev = ((stepUrl code) . _rId) <$> prevRace style race
+      , _next = Just (nextStepUrl code style race)
       , _index = Nothing
       }
 
 recordBallotSelection :: StarTerm m => m ()
 recordBallotSelection = do
-  (style, race) <- ballotStepParams
+  (code, style, race) <- ballotStepParams
   s <- getPostParam (e "selection")
   case s of
     Just selection -> do
       setSelection style race (d selection)
-      redirect (e (nextStepUrl style race))
+      redirect (e (nextStepUrl code style race))
     Nothing -> pass
 
 showSummary :: StarTerm m => m ()
 showSummary = do
-  (style, ballot) <- ballotParams
-  render (p (summaryView strings style ballot))
+  (code, style, ballot) <- ballotParams
+  render (pg (summaryView strings code style ballot))
 
 finalize :: StarTerm m => m ()
 finalize = do
-  (style, ballot) <- ballotParams
+  (code, _, ballot) <- ballotParams
   ballotId        <- BallotId        . pack . UUID.toString <$> liftIO randomIO
   ballotCastingId <- BallotCastingId . pack . UUID.toString <$> liftIO randomIO
   tState          <- get
@@ -109,10 +102,10 @@ finalize = do
                              ballot
   state $ \s -> ((), s { _recordedVotes = record : _recordedVotes s })
   liftIO $ transmit (_postUrl term) record
-  redirect (e (exitInstructionsUrl style))
+  redirect (e (exitInstructionsUrl code))
 
 exitInstructions :: StarTerm m => m ()
-exitInstructions = render (p (exitInstructionsView strings))
+exitInstructions = render (pg (exitInstructionsView strings))
 
 transmit :: String -> EncryptedRecord -> IO ()
 transmit url record = do
@@ -124,7 +117,7 @@ transmit url record = do
     request r = r { method = "POST", requestBody = body }
     manager   = undefined  -- TODO
 
-ballotStepParams :: StarTerm m => m (BallotStyle, Race)
+ballotStepParams :: StarTerm m => m (BallotCode, BallotStyle, Race)
 ballotStepParams = do
   code   <- paramR "code"
   raceId <- param "stepId"
@@ -136,9 +129,9 @@ ballotStepParams = do
       rId    <- mRId
       style  <- lookupBallotStyle code s
       race   <- bRace rId style
-      return (style, race)
+      return (code, style, race)
 
-ballotParams :: StarTerm m => m (BallotStyle, Ballot)
+ballotParams :: StarTerm m => m (BallotCode, BallotStyle, Ballot)
 ballotParams = do
   code    <- paramR "code"
   mBallot <- maybe pass getBallot code
@@ -149,7 +142,7 @@ ballotParams = do
       code   <- mCode
       style  <- lookupBallotStyle code s
       ballot <- mBallot
-      return (style, ballot)
+      return (code, style, ballot)
 
 getSelection :: StarTerm m => BallotStyle -> Race -> m (Maybe Selection)
 getSelection style race = do
@@ -210,8 +203,8 @@ e = encodeUtf8
 d :: ByteString -> Text
 d = decodeUtf8With ignore
 
-p :: Html -> Html
-p = page (localize "star_terminal" strings)
+pg :: Html -> Html
+pg = page (localize "star_terminal" strings)
 
 strings :: Translations
 strings = translations

@@ -45,7 +45,6 @@ site =
     route [ ("ballots",                    method GET  askForBallotCode)
           , ("ballots/:code/step/:stepId", method GET  showBallotStep)
           , ("ballots/:code/step/:stepId", method POST recordBallotSelection)
-          , ("ballots/:code",              method GET  ballotHandler)
           , ("ballots/:code/summary",      method GET  showSummary)
           , ("ballots/:code/summary",      method POST finalize)
           , ("ballots/:code/complete",     method GET  exitInstructions)

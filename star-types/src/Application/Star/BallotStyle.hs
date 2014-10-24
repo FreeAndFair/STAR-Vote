@@ -17,12 +17,14 @@ data BallotStyle = BallotStyle
   { _bId :: BallotStyleId
   , _bRaces :: [Race]
   }
+  deriving Show
 
 data Race = Race
   { _rDescription :: Text
   , _rId :: RaceId
   , _rOptions :: [Option]
   }
+  deriving Show
 
 data Option = Option
   { _oId :: OptionId
@@ -30,6 +32,7 @@ data Option = Option
   , _oParty :: Maybe Text
   , _oOccupation :: Maybe Text
   }
+  deriving Show
 
 lookup :: BallotStyleId -> BallotStyles -> Maybe BallotStyle
 lookup bId styles = safeHead (filter ((== bId) . _bId) styles)

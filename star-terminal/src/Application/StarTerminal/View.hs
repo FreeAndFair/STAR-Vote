@@ -6,7 +6,7 @@ import           Data.Maybe (isJust)
 import           Data.Monoid ((<>), mempty)
 import           Data.Text (Text)
 import qualified Data.Text as T
-import           Text.Blaze.Html5
+import           Text.Blaze.Html5 hiding (code)
 import           Text.Blaze.Html5.Attributes
 import qualified Text.Blaze.Html5 as H
 import qualified Text.Blaze.Html5.Attributes as A
@@ -71,21 +71,21 @@ selectionDescription o = do
   whitespace
   maybe mempty (\party -> toHtml (T.concat ["(", party, ")"])) (_oParty o)
 
-summaryView :: Translations -> BallotStyle -> Ballot -> Html
-summaryView ts bStyle ballot =
+summaryView :: Translations -> BallotCode -> BallotStyle -> Ballot -> Html
+summaryView ts code bStyle ballot =
   H.form ! method "post" $ do
-    navSummary ts bStyle
+    navSummary ts code bStyle
     div ! class_ "container" $ do
       div ! class_ "page-header" $ do
         h1 (t "summary" ts)
-      foldl' (\h race -> h <> summaryItemView ts bStyle race ballot)
+      foldl' (\h race -> h <> summaryItemView ts code bStyle race ballot)
         mempty (bRaces bStyle)
 
-summaryItemView :: Translations -> BallotStyle -> Race -> Ballot -> Html
-summaryItemView ts bStyle race ballot =
+summaryItemView :: Translations -> BallotCode -> BallotStyle -> Race -> Ballot -> Html
+summaryItemView _ code bStyle race ballot =
   div ! class_ (toValue (T.append "summary-item" bgClass)) $ do
     p ! class_ "item-title text-left" $ do
-      a ! href (toValue (stepUrl bId rId)) $ do
+      a ! href (toValue (stepUrl code rId)) $ do
         toHtml itemTitle
     p ! class_ "item-selection text-right" $ do
       case mOpt of
@@ -96,7 +96,6 @@ summaryItemView ts bStyle race ballot =
     selection = Ballot.lookup (key bStyle race) ballot
     mOpt = selection >>= \s -> BS.option s race
     bgClass = if isJust mOpt then "" else " bg-warning"
-    bId = _bId bStyle
     rId = _rId race
 
 exitInstructionsView :: Translations -> Html
@@ -142,16 +141,16 @@ navbar ts navLinks =
       t "show_progress" ts)
       (_index navLinks)
 
-navSummary :: Translations -> BallotStyle -> Html
-navSummary ts bStyle =
+navSummary :: Translations -> BallotCode -> BallotStyle -> Html
+navSummary ts code bStyle =
   bottomNav $ do
-    navLink "navbar-left" (lastStepUrl bStyle) $ do
+    navLink "navbar-left" (lastStepUrl code bStyle) $ do
       H.span mempty ! class_ "glyphicon glyphicon-chevron-left"
       whitespace
       t "previous_step" ts
     button ! class_ "btn btn-default navbar-btn navbar-right" ! type_ "submit" $ do
       t "print_ballot" ts
-    navLink "navbar-left" (progressUrl bStyle Nothing) $ do
+    navLink "navbar-left" (progressUrl code Nothing) $ do
       t "show_progress" ts
 
 bottomNav :: Html -> Html

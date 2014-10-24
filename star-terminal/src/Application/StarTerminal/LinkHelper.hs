@@ -4,27 +4,28 @@ module Application.StarTerminal.LinkHelper where
 import           Data.Text (Text)
 import qualified Data.Text as T
 
+import           Application.Star.Ballot
 import           Application.Star.BallotStyle
 
-stepUrl :: BallotStyleId -> RaceId -> Text
-stepUrl bId rId = T.concat ["/ballot/", bId, "/step/", rId]
+stepUrl :: BallotCode -> RaceId -> Text
+stepUrl code rId = T.concat ["/ballots/", T.pack (show code), "/step/", rId]
 
-nextStepUrl :: BallotStyle -> Race -> Text
-nextStepUrl style race = case nextRace style race of
-  Just r  -> stepUrl (_bId style) (_rId r)
-  Nothing -> summaryUrl style
+nextStepUrl :: BallotCode -> BallotStyle -> Race -> Text
+nextStepUrl code style race = case nextRace style race of
+  Just r  -> stepUrl code (_rId r)
+  Nothing -> summaryUrl code
 
-firstStepUrl :: BallotStyle -> Text
-firstStepUrl style = stepUrl (_bId style) (_rId (head (bRaces style)))
+firstStepUrl :: BallotCode -> BallotStyle -> Text
+firstStepUrl code style = stepUrl code (_rId (head (bRaces style)))
 
-lastStepUrl :: BallotStyle -> Text
-lastStepUrl style = stepUrl (_bId style) (_rId (last (bRaces style)))
+lastStepUrl :: BallotCode -> BallotStyle -> Text
+lastStepUrl code style = stepUrl code (_rId (last (bRaces style)))
 
-progressUrl :: BallotStyle -> Maybe Race -> Text
-progressUrl style _ = T.concat ["/ballot/", _bId style, "/progress"]
+progressUrl :: BallotCode -> Maybe Race -> Text
+progressUrl code _ = T.concat ["/ballots/", T.pack (show code), "/progress"]
 
-summaryUrl :: BallotStyle -> Text
-summaryUrl style = T.concat ["/ballot/", _bId style, "/summary"]
+summaryUrl :: BallotCode -> Text
+summaryUrl code = T.concat ["/ballots/", T.pack (show code), "/summary"]
 
-exitInstructionsUrl :: BallotStyle -> Text
-exitInstructionsUrl style = T.concat ["/ballot/", _bId style, "/complete"]
+exitInstructionsUrl :: BallotCode -> Text
+exitInstructionsUrl code = T.concat ["/ballots/", T.pack (show code), "/complete"]
