@@ -2,6 +2,14 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 
+{-|
+Module      : Application.StarTerminal.Controller
+Description : Defines web server actions
+
+Defines handlers, which are called from `Main`.
+Handles state changes,
+invokes functions in `Application.StarTerminal.View` to render pages.
+ -}
 module Application.StarTerminal.Controller where
 
 import           Control.Applicative ((<$>), (<*>))
@@ -42,6 +50,8 @@ import           Application.StarTerminal.State
 
 type StarTerm m = (MonadError Text m, MonadState TerminalState m, MonadSnap m)
 
+-- | Accepts ballot codes and records mappings from codes to ballot styles.
+-- This function updates the `_ballotCodes` field of `TerminalState`.
 recordBallotStyleCode :: StarTerm m => m ()
 recordBallotStyleCode = do
   ballotId  <- param "ballotId"
@@ -55,6 +65,11 @@ recordBallotStyleCode = do
     getResponse >>= finishWith
   state $ ((,) ()) . insertCode (fromJust code) (fromJust style)
 
+-- | This renders the first page that the voter should see:
+-- A prompt asking for a ballot code.
+-- When this handler is invoked with a ballot code parameter,
+-- looks up the corresponding ballot style and redirects to the first-step page
+-- for that ballot style.
 askForBallotCode :: StarTerm m => m ()
 askForBallotCode = do
   mCode  <- paramR "code"

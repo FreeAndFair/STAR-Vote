@@ -2,7 +2,14 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Main where
+{-|
+Module      : Main
+Description : Runs the voting terminal's internal web server
+ -}
+module Main
+  ( main
+  , site
+  ) where
 
 import           Control.Applicative
 import           Data.ByteString.Lazy (ByteString)
@@ -22,6 +29,11 @@ import           Application.Star.Util (statefulErrorServe)
 import           Application.StarTerminal.Controller
 import           Application.StarTerminal.State (Terminal(..), TerminalState(..))
 
+-- | Main function for the `star-terminal` executable.
+-- Collects configuration paramaters from environment variables.
+-- See `Application.StarTerminal.State` for documentation on parameters.
+--
+-- `star-terminal` may be run with a `-p` flag to specify a port number.
 main :: IO ()
 main = do
   tId    <- TerminalId . SB . encodeUtf8 . pack <$> getEnv "STAR_TERMINAL_ID"
@@ -39,6 +51,7 @@ main = do
                       }
   statefulErrorServe site $ TerminalState def def term
 
+-- | Defines URLs and request methods associated with each server handler.
 site :: StarTerm m => m ()
 site =
     -- ifTop (formHandler) <|>
