@@ -181,7 +181,7 @@ setSelection style race s = modifyResponse $ addResponseCookie (c s)
       , cookieDomain   = Nothing
       , cookiePath     = Just (e "/")
       , cookieSecure   = False  -- TODO: should be True in production
-      , cookieHttpOnly = True
+      , cookieHttpOnly = False
       }
 
 getBallot :: StarTerm m => BallotCode -> m (Maybe Ballot)
