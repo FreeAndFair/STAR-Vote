@@ -120,8 +120,6 @@ page pageTitle pageContent = docTypeHtml ! lang "en" $ do
     ieShims
   body $ do
     pageContent
-    script mempty ! src "https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"
-    script mempty ! src "/static/bootstrap-3.2.0-dist/js/bootstrap.min.js"
     script mempty ! src "/static/js/site.js"
 
 withNav :: Translations -> NavLinks -> Html -> Html
