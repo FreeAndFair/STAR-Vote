@@ -2,6 +2,16 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 
+{-|
+Module      : Application.Star.Ballot
+Description : Type for completed ballot
+
+The `Ballot` represents a completed ballot,
+as a mapping from race IDs (`BallotKey` values) to selections.
+
+`Ballot` serializes to a `ByteString` so that it can be encrypted.
+Serialization is achieved using CSV format (with tab-separated fields).
+-}
 module Application.Star.Ballot where
 
 import           Data.Aeson (FromJSON, ToJSON)

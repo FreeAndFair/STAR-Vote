@@ -1,4 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-|
+Module      : Application.StarTerminal.Localization
+Description : Adhoc i18n system
+
+Adhoc i18n system, for use until a real i18n library is incorporated.
+ -}
 module Application.StarTerminal.Localization where
 
 import           Data.Text (Text)

@@ -1,5 +1,13 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 
+{-|
+Module      : Application.Star.SerializableBS
+Description : newtype wrapper for ByteStrings with Aeson instances
+
+Provides the type `SerializableBS`,
+which allows ByteString values to be serialized to and from JSON.
+Values are encoded using base-16 to match the format for terminal configuration.
+ -}
 module Application.Star.SerializableBS where
 
 import           Control.Applicative ((<$>))
