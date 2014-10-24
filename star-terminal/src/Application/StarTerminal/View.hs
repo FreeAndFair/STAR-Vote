@@ -39,21 +39,23 @@ codeEntryView ts =
       H.button ! type_ "submit" ! class_ "btn btn-default" $ do
         (t "submit" ts)
 
-ballotStepView :: Translations -> NavLinks -> Race -> Maybe Selection -> Html
-ballotStepView ts navLinks r s = withNav ts navLinks $
+ballotStepView :: Translations -> NavLinks -> BallotStyle -> Race -> Maybe Selection -> Html
+ballotStepView ts navLinks bStyle r s = withNav ts navLinks $
   div ! class_ "container" $ do
     div ! class_ "page-header" $ do
       h1 (toHtml (_rDescription r))
     H.form ! role "form" ! A.method "post" $ do
       foldl' (\h o -> h <> ballotOptionView ts s o) mempty (_rOptions r)
-      H.button ! type_ "submit" ! class_ "btn btn-default" $ do
-        (t "submit" ts)
+      input ! type_ "hidden" ! name "race-key" ! value (toValue (key bStyle r))
+      noscript $ do
+        H.button ! type_ "submit" ! class_ "btn btn-default" $ do
+          (t "submit" ts)
 
 ballotOptionView :: Translations -> Maybe Selection -> Option -> Html
 ballotOptionView _ s o =
   div ! class_ "radio" $ do
     H.label $ do
-      input ! type_ "radio" ! name "selection" ! value k ! isChecked
+      input ! type_ "radio" ! name "selection" ! class_ "ballot-option" ! value k ! isChecked
       H.span $ do
         selectionDescription o
       br
@@ -120,6 +122,7 @@ page pageTitle pageContent = docTypeHtml ! lang "en" $ do
     pageContent
     script mempty ! src "https://ajax.googleapis.com/ajax/libs/jquery/1.11.1/jquery.min.js"
     script mempty ! src "/static/bootstrap-3.2.0-dist/js/bootstrap.min.js"
+    script mempty ! src "/static/js/site.js"
 
 withNav :: Translations -> NavLinks -> Html -> Html
 withNav ts navLinks c = navbar ts navLinks <> c

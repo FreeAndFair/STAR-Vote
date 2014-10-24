@@ -68,7 +68,7 @@ showBallotStep :: StarTerm m => m ()
 showBallotStep = do
   (code, ballotStyle, race) <- ballotStepParams
   s <- getSelection ballotStyle race
-  render (pg (ballotStepView strings (nav code ballotStyle race) race s))
+  render (pg (ballotStepView strings (nav code ballotStyle race) ballotStyle race s))
   where
     nav code style race = NavLinks
       { _prev = ((stepUrl code) . _rId) <$> prevRace style race
