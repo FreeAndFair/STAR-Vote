@@ -9,18 +9,26 @@ import Application.Star.SerializableBS
 import Application.Star.Util
 import Application.Star.CommonImports hiding (method)
 import Control.Arrow
+import Control.Concurrent
 import Control.Lens
 import Data.Char
+import Data.List.Split
+import Data.Maybe
+import Network.HTTP.Client hiding (method)
+import Network.HTTP.Client.TLS
+import System.Environment
 import System.Random
 
 import qualified Control.Concurrent.STM as STM
 import qualified Data.Map  as M
 import qualified Data.Set  as S
 import qualified Data.Text as T
+import qualified Network.HTTP.Client as HTTP
 
 type TMap k v = Map k (TVar v)
 data ControllerState = ControllerState
 	{ _seed :: StdGen
+	, _broadcastURLs :: [String]
 	, _ballotStyles :: Set BallotCode
 	-- ballotBox invariant: the bcid in the EncryptedRecord matches the key it's filed under in the Map
 	, _ballotBox :: TMap BallotCastingId (BallotStatus, EncryptedRecord)
@@ -31,13 +39,14 @@ makeLenses ''ControllerState
 main :: IO ()
 main = do
 	seed <- getStdGen
-	statefulErrorServe controller $ ControllerState seed def def
+	urls <- maybe ["http://terminal/ballots"] (splitOn ";") <$> lookupEnv "STAR_POST_BALLOT_CODE_URLS"
+	statefulErrorServe controller $ ControllerState seed urls def def
 
 controller :: (MonadError Text m, MonadTransaction ControllerState m, MonadSnap m) => m ()
 controller = route $
 	[ ("generateCode", do
 		method POST
-		styleID <- readBodyParam "style"
+		styleID <- decodeParam rqPostParams "style"
 		code    <- generateCode
 		broadcast code styleID
 		writeShow code
@@ -90,9 +99,18 @@ registerCode code db
 	| otherwise = (False, db)
 -- }}}
 
--- TODO
-broadcast :: MonadSnap m => BallotCode -> ID BallotStyle -> m ()
-broadcast code styleID = return ()
+broadcast :: (MonadState ControllerState m, MonadError Text m, MonadSnap m)
+          => BallotCode -> BallotStyleId -> m ()
+broadcast code styleID = do
+	bases <- gets _broadcastURLs
+	urlRequests <- mapM (errorT . parseUrl . urlFor) bases
+	-- for now, no error-handling of any kind
+	mapM_ (liftIO . forkIO . void . post) urlRequests
+	where
+	urlFor base = base <> "/" <> T.unpack styleID <> "/codes/" <> show code
+	errorT (Left  e) = throwError . T.pack . show $ e
+	errorT (Right v) = return v
+	post r = withManager tlsManagerSettings (httpNoBody r { HTTP.method = "POST" })
 
 fillOut :: EncryptedRecord -> ControllerState -> STM ((), ControllerState)
 fillOut ballot s = do

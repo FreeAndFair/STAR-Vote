@@ -87,19 +87,25 @@ readJSONBody = do
 	where
 	maxRequestSize = 1048576
 
-readParam :: (MonadError Text m, MonadSnap m, Read a) => (Request -> Params) -> ByteString -> m a
-readParam extractParams name = do
+decodeParam :: (MonadError Text m, MonadSnap m) => (Request -> Params) -> ByteString -> m Text
+decodeParam extractParams name = do
 	params <- extractParams <$> getRequest
-	reportWhere $ case M.lookup name params of
+	reportWhere name $ case M.lookup name params of
 		Just (bs:_) -> case decodeUtf8' bs of
-			Right t -> case reads (T.unpack t) of
-				(v, rest):_ | all isSpace rest -> Right v
-				_ -> Left "unparseable"
+			Right t -> return t
 			_ -> Left "badly encoded"
 		_ -> Left "missing"
-	where
-	reportWhere (Left  s) = throwError (s <> " argument in parameter " <> T.pack (show name))
-	reportWhere (Right v) = return v
+
+readParam :: (MonadError Text m, MonadSnap m, Read a) => (Request -> Params) -> ByteString -> m a
+readParam extractParams name = do
+	text <- decodeParam extractParams name
+	reportWhere name $ case reads (T.unpack text) of
+		(v, rest):_ | all isSpace rest -> Right v
+		_ -> Left "unparseable"
+
+reportWhere :: MonadError Text m => ByteString -> Either Text a -> m a
+reportWhere name (Left  s) = throwError (s <> " argument in parameter " <> T.pack (show name))
+reportWhere name (Right v) = return v
 
 readURIParam, readBodyParam :: (MonadError Text m, MonadSnap m, Read a) => ByteString -> m a
 readURIParam  = readParam rqQueryParams
