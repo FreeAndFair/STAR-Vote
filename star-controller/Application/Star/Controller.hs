@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, OverloadedStrings, Rank2Types, TemplateHaskell #-}
+{-# LANGUAGE FlexibleContexts, FlexibleInstances, OverloadedStrings, Rank2Types, TemplateHaskell #-}
 module Application.Star.Controller where
 
 import Application.Star.Ballot
@@ -11,6 +11,7 @@ import Application.Star.CommonImports hiding (method)
 import Control.Arrow
 import Control.Concurrent
 import Control.Lens
+import Data.Aeson
 import Data.Char
 import Data.List.Split
 import Data.Maybe
@@ -20,6 +21,7 @@ import System.Environment
 import System.Random
 
 import qualified Control.Concurrent.STM as STM
+import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map  as M
 import qualified Data.Set  as S
 import qualified Data.Text as T
@@ -35,6 +37,8 @@ data ControllerState = ControllerState
 	}
 
 makeLenses ''ControllerState
+instance ToJSON v => ToJSON (Map BallotCastingId v) where
+	toJSON m = Object $ HM.fromList [(k, toJSON v) | (BallotCastingId k, v) <- M.toList m]
 
 main :: IO ()
 main = do
@@ -65,6 +69,11 @@ controller = route $
 		method POST
 		castingID <- BallotCastingId <$> readBodyParam "bcid"
 		setUnknownBallotTo Spoiled castingID
+	  )
+	, ("ballotBox", do
+		method GET
+		v <- readEntireBallotBox
+		writeLBS . encode $ v
 	  )
 	-- TODO: provisional casting
 	]
@@ -128,6 +137,9 @@ setUnknownBallotTo status bcid = join . transaction_ $ \s -> do
 				Unknown -> STM.writeTVar p (status, record) >> return (return ())
 				_ -> return (throwError $ T.pack (show bcid) <> " was already " <> T.pack (map toLower (show status)))
 		_ -> return (throwError $ "Unknown " <> T.pack (show bcid))
+
+readEntireBallotBox :: MonadTransaction ControllerState m => m (Map BallotCastingId (BallotStatus, EncryptedRecord))
+readEntireBallotBox = transaction_ $ traverse STM.readTVar . _ballotBox
 
 state' :: MonadState s m => Lens s s t t -> (t -> (a, t)) -> m a
 state' lens f = state (\s -> second (flip (set lens) s) (f (view lens s)))

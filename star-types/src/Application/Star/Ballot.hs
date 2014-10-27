@@ -1,6 +1,7 @@
 {-# LANGUAGE EmptyDataDecls #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TemplateHaskell #-}
 
 {-|
 Module      : Application.Star.Ballot
@@ -15,6 +16,7 @@ Serialization is achieved using CSV format (with tab-separated fields).
 module Application.Star.Ballot where
 
 import           Data.Aeson (FromJSON, ToJSON)
+import           Data.Aeson.TH (deriveJSON, defaultOptions)
 import           Data.Binary (Binary, get, put)
 import qualified Data.Binary as B
 import           Data.Binary.Get (getRemainingLazyByteString)
@@ -42,6 +44,7 @@ newtype BallotCastingId = BallotCastingId Text
 
 data BallotStatus = Unknown | Spoiled | Cast
   deriving (Bounded, Enum, Eq, Ord, Read, Show)
+deriveJSON defaultOptions ''BallotStatus
 
 newtype Ballot = Ballot { _bMap :: Map BallotKey Selection }
 newtype RaceSelection = RaceSelection (BallotKey, Selection)
