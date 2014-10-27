@@ -29,11 +29,11 @@ import           Application.Star.Util (statefulErrorServe)
 import           Application.StarTerminal.Controller
 import           Application.StarTerminal.State (Terminal(..), TerminalState(..))
 
--- | Main function for the `star-terminal` executable.
+-- | Main function for the @star-terminal@ executable.
 -- Collects configuration paramaters from environment variables.
--- See `Application.StarTerminal.State` for documentation on parameters.
+-- See @Application.StarTerminal.State@ for documentation on parameters.
 --
--- `star-terminal` may be run with a `-p` flag to specify a port number.
+-- @star-terminal@ may be run with a @-p@ flag to specify a port number.
 main :: IO ()
 main = do
   tId    <- TerminalId . SB . encodeUtf8 . pack <$> getEnv "STAR_TERMINAL_ID"

@@ -9,7 +9,8 @@ Category:            Application
 Build-type:          Simple
 Cabal-version:       >=1.2
 Description:
-  A prototype of one component of [STAR-Vote][], a secure and auditable voting system.
+  A prototype of one component of STAR-Vote, a secure and auditable voting system.
+  STAR-vote is described at <https://www.usenix.org/system/files/conference/evtwote13/jets-0101-bell.pdf>.
   .
   STAR-Vote describes several machines that are involved in the voting process.
   This project implements software for a voting terminal.
@@ -20,20 +21,19 @@ Description:
   The user interface is optimized for tablet-sized touchscreen devices;
   but it will work fine on mouse-operated computers too.
   .
-  The server is started by running the `star-terminal` executable.
+  The server is started by running the @star-terminal@ executable.
   It requires certain environment variables to provide configuration parameters.
-  Examples of those parameters are provided in the `start.sh` script.
+  Examples of those parameters are provided in the @start.sh@ script.
   See `Application.StarTerminal.State` for parameter documentation.
   .
   Quickstart:
   .
-  * `make`
-  * `./start.sh`
-  * In a web browser, navigate to [http://localhost:8000/ballots][localhost]
+  * @make@
+  * @./start.sh@
+  * In a web browser, navigate to <http://localhost:8000/ballots>
   * Enter the code: 25682
-  .
-  [STAR-Vote]: https://www.usenix.org/system/files/conference/evtwote13/jets-0101-bell.pdf
-  [localhost]: http://localhost:8000/ballots
+
+
 
 Executable star-terminal
   hs-source-dirs: src
