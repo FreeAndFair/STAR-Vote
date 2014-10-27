@@ -16,7 +16,7 @@ data-dir:            data
 data-files:          js/server.js, js/jquery-2.1.1.min.js
 
 library
-  exposed-modules:     BB, BB.DB, BB.JSON, BB.Protocol, BB.Time
+  exposed-modules:     BB.DB, BB.JSON, BB.Protocol, BB.Time
   -- other-modules:       
   -- other-extensions:    
   build-depends:       HDBC >=2.4.0 && < 2.5
@@ -68,7 +68,8 @@ executable bbserver
 
 executable bbclient
   main-is:             Main.hs
-  build-depends:       aeson >=0.8.0.2 && <0.9
+  build-depends:       HTTP >=4000.2.18 && <4000.3
+                     , aeson >=0.8.0.2 && <0.9
                      , append-only-bb
                      , base >=4.7 && <4.8
                      , bytestring >= 0.10.4.0

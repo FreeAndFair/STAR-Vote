@@ -1,3 +1,7 @@
+{-| Ensure a consistent treatment of time (when entered by BB users)
+by providing a canonical mapping to and from strings.
+-}
+
 module BB.Time where
 
 import Data.Byteable

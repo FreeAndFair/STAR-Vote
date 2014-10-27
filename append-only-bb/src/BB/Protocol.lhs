@@ -1,7 +1,9 @@
-> {-# LANGUAGE MultiWayIf #-}
+> {-# LANGUAGE MultiWayIf, PatternGuards, OverloadedStrings #-}
 
-This is a pure implementation of the communications protocol for
-posting to and reading from the BB.
+> {-| This is a pure implementation of the communications protocol for
+> posting to and reading from the BB. This is a literate Haskell file
+> please read the source.
+> -}
 
 > module BB.Protocol where
 
@@ -23,7 +25,9 @@ posting to and reading from the BB.
 > import qualified Data.ByteString.Lazy as BSL
 > import qualified Data.ByteString.Lazy.UTF8 as UTF8
 
-> import Data.Foldable (foldrM)
+> import Data.Foldable (foldrM, foldlM)
+
+> import Data.List (intercalate)
 
 > import Data.Monoid
 
@@ -37,6 +41,13 @@ posting to and reading from the BB.
 For purposes of the communication protocol, all hashes are ByteStrings
 
 > type Hash = ByteString
+
+
+We need an intial sequence hash to use when the board is
+empty. Following the paper, call it "0".
+
+> initialHash :: Hash
+> initialHash = "0"
 
 > instance (Byteable a, Byteable b) => Byteable (a, b) where
 >   toBytes (a, b) = toBytes a <> toBytes b
@@ -137,7 +148,7 @@ This implementation, upon success, returns the first sequence hash
 
 First, we check if a single post is consistent, given a previous hash
 
-> consistentP :: (Eq writer, Byteable msg, Byteable writer)
+> consistentP :: (Eq writer, Byteable msg, Byteable writer, Show msg, Show writer)
 >             => NominalDiffTime
 >             -> (writer -> Maybe ECDSA.PublicKey)
 >             -> ECDSA.PublicKey
@@ -146,10 +157,14 @@ First, we check if a single post is consistent, given a previous hash
 >             -> Either String Hash
 > consistentP epsilon keys boardKey p h0 =
 >   case keys w of
->     Nothing -> Left "Couldn't find public key for writer"
+>     Nothing -> Left $ "Couldn't find public key for writer " ++ show w
 >     Just wk ->
 >       if | toBytes (sha256 (m, ti, w, h0)) /= postSequenceHash p ->
->            Left "Mismatching hash"
+>            Left $ "Mismatching hashes: " ++
+>                   "I hashed " ++ intercalate "," [show m, show ti, show w, show h0] ++
+>                   " and got " ++
+>                   show (toBytes (sha256 (m, ti, w, h0))) ++
+>                   " and " ++ show (postSequenceHash p)
 >          | not $ verify wk sw ->
 >            Left "Mismatching writer signature"
 >          | not $ verify boardKey sb ->
@@ -167,7 +182,7 @@ First, we check if a single post is consistent, given a previous hash
 >         sb  = postBoardSig p
 >         ti' = postBoardTime p
 
-> consistent :: (Eq writer, Byteable msg, Byteable writer)
+> consistent :: (Eq writer, Byteable msg, Byteable writer, Show writer, Show msg)
 >            => NominalDiffTime
 >            -> (writer -> Maybe ECDSA.PublicKey)
 >            -> ECDSA.PublicKey
@@ -176,6 +191,51 @@ First, we check if a single post is consistent, given a previous hash
 >            -> Either String Hash
 > consistent epsilon keys boardKey =
 >   flip . foldrM $ consistentP epsilon keys boardKey
+
+
+
+When the board is read, it sends the message history along with the
+signed latest sequence hash and the current time.
+
+This is Message 1 under "Reading" in the paper.
+
+> readBoard :: (CPRG g, Byteable msg, Byteable writer)
+>           => g
+>           -> History msg writer  -- ^ The history to be read
+>           -> ECDSA.PrivateKey    -- ^ The BB's private key
+>           -> Hash                -- ^ The hash for an empty history (0 in the paper)
+>           -> UTCTime             -- ^ Now
+>           -> ((History msg writer, Signed (Hash, UTCTime)), g)
+> readBoard g hist priv h0 now = let (s, g') = sign g priv (h, now)
+>                                in ((hist, s), g')
+>   where h | []    <- hist = h0
+>           | (p:_) <- hist = postSequenceHash p
+
+To verify this message, the writer must check:
+ 1. The signature matches the board's public key
+ 2. The signed sequence hash matches the most recent one in the history
+ 3. The time is sufficiently recent (ie within some factor epsilon of the current time)
+ 4. The history is consistent
+
+Point 3 is not explicit in the paper, but it doesn't make sense without it.
+
+> checkRead :: (Byteable msg, Byteable writer, Eq writer, Show writer, Show msg)
+>           => (writer -> Maybe ECDSA.PublicKey) -- ^ Public keys for message authors
+>           -> NominalDiffTime                   -- ^ Time tolerance
+>           -> NominalDiffTime                   -- ^ Epsilon for checking BB
+>           -> UTCTime                           -- ^ Now
+>           -> ECDSA.PublicKey                   -- ^ The board's public key
+>           -> Hash                              -- ^ The initial sequence hash
+>           -> (History msg writer, Signed (Hash, UTCTime))
+>           -> Either String ()
+> checkRead keys tolerance epsilon now boardpub h0 (hist, sig@(Signed (h, tb) s)) =
+>   if | not $ verify boardpub sig     -> Left "The signature doesn't match"  -- (1)
+>      | [] <- hist , h0 /= h          -> Left "Mismatched sequence hash for empty history" -- (2)
+>      | (p:_) <- hist,
+>        postSequenceHash p /= h       -> Left "Mismatched sequence hash for history" -- (2)
+>      | tb > now                      -> Left "The board's time is greater than the current time - check clocks" -- (3)
+>      | addUTCTime tolerance tb < now -> Left "Too much time has passed since the board signed the history"      -- (3)
+>      | otherwise                     -> fmap (const ()) $ consistent epsilon keys boardpub hist h0 -- (4)
 
 
 Writing to the board
@@ -221,6 +281,15 @@ The writer sends the message to the board. Accompanying this is:
   - the previous end-of-chain hash
  4. A signature for the hash proving that the writer intends to append this message
 
+> data NewMessage msg writer =
+>   NewMessage { newMessageText :: msg
+>              , newMessageWritingTime :: UTCTime
+>              , newMessageWriter :: writer
+>              , newMessageSignature :: Signed Hash
+>              }
+>  deriving Show
+
+
 > prepareMessage :: (CPRG g, Byteable msg, Byteable writer)
 >                => g                -- ^ Random state
 >                -> ECDSA.PrivateKey -- ^ The writer's private key
@@ -228,25 +297,26 @@ The writer sends the message to the board. Accompanying this is:
 >                -> UTCTime          -- ^ the time of writing
 >                -> writer           -- ^ the writer's name
 >                -> Hash             -- ^ the previous end-of-chain hash
->                -> ((msg, UTCTime, writer, Signed Hash), g)
+>                -> (NewMessage msg writer, g)
 > prepareMessage g k message tw w h =
->   let h'           = toBytes $ sha256 (message, tw, w)
+>   let h'           = toBytes $ sha256 (message, tw, w, h)
 >       (signed, g') = sign g k h'
->   in ((message, tw, w, signed), g)
+>   in (NewMessage message tw w signed, g)
 
 When the board recieves this message, it needs to check the following:
  1. The signature is valid according to the writer's public key
  2. The hash is actually a hash of the message, the timestamp, and the writer
 
 > checkMessage :: (Byteable msg, Byteable writer)
->              => ECDSA.PublicKey                     -- ^ The writer's public key
->              -> (msg, UTCTime, writer, Signed Hash) -- ^ The new post
+>              => Hash                                -- ^ The current state hash
+>              -> ECDSA.PublicKey                     -- ^ The writer's public key
+>              -> NewMessage msg writer               -- ^ The new post
 >              -> Either String ()
-> checkMessage k (message, tw, w, sh@(Signed h sig)) =
+> checkMessage h0 k (NewMessage message tw w sh@(Signed h sig)) =
 >   if | not $ verify k sh -> Left ("The signature doesn't match")
 >      | h /= myHash       -> Left ("The hash doesn't match")
 >      | otherwise         -> Right ()
->   where myHash = toBytes $ sha256 (message, tw, w)
+>   where myHash = toBytes $ sha256 (message, tw, w, h0)
 
 
 Step 3

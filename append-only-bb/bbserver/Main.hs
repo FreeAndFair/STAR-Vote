@@ -1,7 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Main where
 
-import BB
 import BB.DB
 import BB.JSON
 import BB.Protocol
@@ -31,6 +30,7 @@ import Data.Monoid
 import Data.Time (UTCTime, getCurrentTime)
 import Data.Time.Format (parseTime)
 
+import qualified Data.Text as T
 import Data.Text.Encoding (decodeUtf8)
 
 import Database.HDBC
@@ -55,17 +55,23 @@ import Text.Blaze.Html.Renderer.Utf8
 
 import Paths_append_only_bb
 
+-- | The internal state of the bulletin board monad
 data BBState = BBState { bb_randomState :: SystemRNG
-                       , bb_connection :: Connection}
+                       , bb_connection :: Connection }
 
 type BB = StateT BBState Snap
 
+
+-- | Use the monad's internal random state to run a function needing it
 withRandom :: (SystemRNG -> BB (b, SystemRNG)) -> BB b
 withRandom f = do BBState { bb_randomState = g } <- get
                   (x, g') <- f g
                   modify $ \st -> st { bb_randomState = g' }
                   return x
 
+-- | Use the monad's internal DB connection to run a DB action The
+-- internal action is IO rather than BB for convenient operation with
+-- the database primitives that don't know about BB.
 withDB :: (Connection -> IO a) -> BB a
 withDB f = do BBState { bb_connection = c } <- get
               liftIO $ f c
@@ -83,44 +89,31 @@ page title contents =
   where scriptSrc :: String -> Html
         scriptSrc s = script ! src (toValue s) $ mempty
 
+-- | Error page template
+errorPage :: String -> Html -> Html
+errorPage title contents = page ("Error: " ++ title) contents
+
+-- | The root of the interface - provides a simple interface for
+-- reading.
 root :: Html
 root = page "The Public, Append-Only Bulletin Board" $ do
          h2 "Actions"
          ul $ do
-           li $ a ! href "/register" $ "Register"
-           li $ a ! href "/post" $ "Post"
+           li $ a ! href "/reset" $ "Delete everything"
          h2 "State"
          ul $ do
+           li $ a ! href "/bb" $ "List posts"
            li $ a ! href "/users" $ "List users"
 
+-- | Render a Blaze structure to the Snap response
 render :: Html -> BB ()
 render = writeLBS . renderHtml
 
-registerForm :: Html
-registerForm =
-    page "Register user" $ do
-      H.form ! A.method "POST" $ do
-        H.label "Name"
-        input ! name "name" ! A.id "registerName"
-        H.hr
-        H.label "Signer info:" ; H.br
-        textarea ! A.id "regInput" $ mempty
-        H.hr
-        H.label "Public key:" ; H.br
-        textarea ! name "key" $ ""
-        input ! type_ "submit"
+-- | Render a structure as JSON to the Snap response
+sendJSON :: (Aeson.ToJSON a) => a -> BB ()
+sendJSON = writeLBS . Aeson.encode
 
-register :: BB ()
-register =
-  do name <- maybe (error "no name") id <$> getPostParam "name"
-     pubkey <- maybe (error "no key") (BL.fromChunks . pure) <$> getPostParam "key"
-     case Aeson.decode pubkey :: Maybe PublicKey of
-       Nothing -> render . page "Invalid key" $ do
-                    H.p "The public key couldn't be deserialized"
-       Just k -> do withDB $ flip addAuthor (Author (decodeUtf8 name) k)
-                    render . page "Registered!" $ do
-                      H.a ! href "/" $ "ok"
-
+-- | List the known BB users in a table
 userList :: BB ()
 userList =
   do users <- withDB getAuthors
@@ -133,13 +126,92 @@ userList =
       tr $ do td $ toHtml n
               td (pre . toHtml . decodeUtf8 . mconcat . BL.toChunks $ Aeson.encode k)
 
+-- | List the known users as a JSON structure, for machine consumption
+userListJSON :: BB ()
+userListJSON = withDB getAuthors >>= sendJSON . map snd
+
+-- | List the posts as a JSON structure, for machine consumption. This
+-- is Message 1 (ie the only message) in the reading protocol.
+postListJSON :: BB ()
+postListJSON = do hist <- withDB getHistory
+                  (_, priv) <- withDB getKeypair
+                  now <- liftIO getCurrentTime
+                  msg1 <- withRandom $ \g -> return $ readBoard g hist priv initialHash now
+                  sendJSON msg1
+
+-- | Send the board's public key as JSON, so clients can verify signatures
+pubKeyJSON :: BB ()
+pubKeyJSON = do (pub, _) <- withDB getKeypair
+                sendJSON pub
+
+-- | Send a signed copy of the current state hash and the current
+-- time. This is Message 1 in the writing protocol.
+postMsg1JSON :: BB ()
+postMsg1JSON = do current <- withRandom $ \g -> withDB $ getCurrentHash g
+                  sendJSON current
+
+
+-- | Receive a new message (Message 2) from the client, check it for
+-- validity, and save the new post and return Message 3 if it's valid.
+postMsg2JSON :: BB ()
+postMsg2JSON =
+  do paramMsg <- readRequestBody 1000000
+     (_, priv) <- withDB getKeypair
+     case Aeson.eitherDecode' paramMsg ::
+          Either String (NewMessage Message Author) of
+       Left err -> sendJSON $ "Couldn't decode message: " ++ err
+       Right msg@(NewMessage p tw w@(Author n k) h) ->
+         do dbkey <- withDB $ \db -> getAuthorKey db n
+            h0 <- withDB getStateHash
+            case dbkey of
+              Left err -> fail err
+              Right k' ->
+                if k /= k'
+                  then do liftIO . putStrLn $ "Mismatching keys for user " ++ T.unpack n
+                          error $ "Mismatching keys for user " ++ T.unpack n
+                  else case checkMessage h0 k msg of
+                         Left err -> do liftIO $ putStrLn err
+                                        fail err
+                         Right () -> do now <- liftIO getCurrentTime
+                                        accepted <-
+                                          withRandom $ \g -> return $
+                                            acceptedMessage g priv h now
+                                        withDB $ \c -> addPost c $ Post p tw w accepted
+                                        sendJSON accepted
+
+-- | Receive a new user registration and save the associated public key
+registerJSON :: BB ()
+registerJSON =
+  do paramUser <- readRequestBody 1000000
+     case Aeson.eitherDecode' paramUser :: Either String (T.Text, PublicKey) of
+       Left err -> sendJSON $ "Couldn't read registration: " ++ err
+       Right (name, pub) ->
+         do withDB $ flip addAuthor (Author name pub)
+            sendJSON ("ok" :: String)
+
+-- | Ask whether or not to delete everything and reset
 resetForm :: Html
 resetForm =
-  page "Reset bb?" $ do
+  page "Reset bb?" $
     H.form ! A.method "POST" $ do
       H.p "Delete everything?"
       input ! type_ "submit" ! value "Yep!"
 
+-- | Show the contents of the BB
+postList :: BB ()
+postList = do hist <- withDB getHistory
+              render . page "Post history" $ do
+                H.table $ do
+                  theader
+                  mconcat . map renderPost . reverse $ hist
+                H.a ! A.href "/" $ "ok"
+  where renderPost post = H.tr $ do
+                            H.td . toHtml . authorName . postWriter $ post
+                            H.td . toHtml . timeString . postWrittenTime $ post
+                            H.td . H.pre . toHtml . messageText . postMessage $ post
+        theader = H.tr $ mconcat [H.th "Author", H.th "Timestamp", H.th "Text"]
+
+-- | Actually reset everything
 reset :: BB ()
 reset =
   do withRandom $ \g -> withDB (initialize g)
@@ -149,70 +221,21 @@ reset =
          h1 "Deleted!"
          H.a ! href "/" $ "ok"
 
-
--- | Get the last hash with a signed timestamp - step 1 in the posting process
-post1 :: BB ()
-post1 =
-  do current <- withRandom $ \g -> withDB $ getCurrentHash g
-     as <- authors
-     now <- fmap timeString $ liftIO getCurrentTime
-     pubkey <- fmap fst $ withDB getKeypair
-     render . page "Step 1: signed timestamp and hash" $ do
-       renderCurrentHash pubkey current
-       p "Remember to verify this before posting."
-       h2 "Post your message below:"
-       H.form $ do
-         H.label "Message"
-         textarea ! name "message" ! A.id "message" ! class_ "step1" $ mempty
-         H.br
-         H.label "Timestamp"
-         input ! type_ "text" ! name "timestamp" ! A.id "timestamp" ! class_ "step1()" ! A.value (toValue now)
-         H.br
-         H.label "Author"
-         H.select ! A.name "author" ! A.id "author" ! class_ "step1" $ as
-         H.hr
-         H.label "Signer info:" ; H.br
-         textarea ! A.id "sigInput" $ mempty
-         H.br
-         H.button ! type_ "button" ! onclick "step1recomp" ! A.value "Recompute" $ "Recompute"
-         H.hr
-         H.label "Hash and signature"
-         textarea ! name "hashsig" $ mempty
-         H.br
-         H.input ! type_ "submit" ! A.value "Submit"
-
-  where mkDl ((t, d):rest) = H.dt t <> H.dd d <> mkDl rest
-        mkDl []            = mempty
-
-        authors = do as <- withDB $ getAuthors
-                     return . mconcat . map authorOption $ as
-        authorOption (i, Author {authorName = n}) = H.option ! value (toValue n) $ toHtml n
-
-        renderCurrentHash :: PublicKey -> CurrentHash -> Html
-        renderCurrentHash pubkey current@(CurrentHash (Signed (hash, t) sig)) = do
-          H.dl (mkDl [ ("hash", H.span ! A.id "the-hash" ! dataAttribute "hash" (toValue (show hash)) $ toHtml (show hash))
-                     , ("timestamp", toHtml (timeString t))
-                     , ("signature", H.pre . toHtml . UTF8.toString . Aeson.encode $ sig)])
-          let msg = Aeson.toJSON current
-              pk  = Aeson.toJSON pubkey
-              cmd = Aeson.Object $ HashMap.fromList [ ("command", Aeson.String "verify-timestamp-sig")
-                                                    , ("timestamp-sig", msg)
-                                                    , ("public-key", pk)
-                                                    ]
-          pre . toHtml . decodeUtf8 . mconcat . BL.toChunks $ Aeson.encode cmd
-
+-- |  The actual server
 server :: FilePath -> BB ()
 server js =
       (method GET . ifTop $ render root)
-  <|> (method GET . path "bb" $ render mempty)
-  <|> (path "register" $
-           (method GET $ render registerForm)
-       <|> (method POST $ register))
+  <|> (method GET . path "pubkey.json" $ pubKeyJSON)
+  <|> (method GET . path "bb" $ postList)
+  <|> (method GET . path "bb.json" $ postListJSON)
+  <|> (method GET . path "current-hash.json" $ postMsg1JSON)
+  <|> (method POST . path "post.json" $ postMsg2JSON)
+  <|> (method POST . path "register.json" $ registerJSON)
   <|> (path "reset" $
            (method GET $ render resetForm)
-       <|> (method POST $ reset))
-  <|> (path "users" $ userList)
-  <|> (path "post" $ method GET $ post1)
+       <|> (method POST reset))
+  <|> (path "users" userList)
+  <|> (path "users.json" userListJSON)
   <|> (path "jquery.js" . serveFile $ js </> "jquery-2.1.1.min.js")
   <|> (path "server.js" . serveFile $ js </> "server.js")
 
@@ -222,7 +245,8 @@ main :: IO ()
 main = do dbfile <- getDataFileName "bb.sqlite"
           jsdir <- getDataFileName "js"
           conn <- connectSqlite3 dbfile
-          g <- (fmap cprgCreate createEntropyPool) :: IO SystemRNG
+          g <- fmap cprgCreate createEntropyPool :: IO SystemRNG
           let initialState = BBState g conn
-          simpleHttpServe (setPort 8000 defaultConfig :: Config BB ()) $ evalStateT (server jsdir) initialState
+          simpleHttpServe (setPort 8000 defaultConfig :: Config BB ()) $
+            evalStateT (server jsdir) initialState
 
