@@ -27,6 +27,42 @@ import qualified Data.Set  as S
 import qualified Data.Text as T
 import qualified Network.HTTP.Client as HTTP
 
+-- entry points:
+-- POST generateCode
+-- 	input:  POST body parameter named "style" containing UTF-8 encoded text
+-- 	        specifying a ballot style (which will be passed off to the voting
+-- 	        terminals)
+-- 	output: a ballot code
+-- POST fillOut
+-- 	input:  POST body containing a JSON-encoded EncryptedRecord describing a
+-- 	        ballot; this is automatically called by the voting terminal
+-- 	output: none
+-- POST cast, POST spoil
+-- 	input:  POST body parameter named "bcid" containing UTF-8 encoded ballot
+-- 	        casting ID to be marked as cast or spoiled
+-- 	output: none
+-- GET ballotBox
+-- 	input:  none
+-- 	output: all filled out ballots as reported by voting terminals
+
+-- An example of using the controller and terminal together on one machine
+-- might look like this (assuming the appropriate executables are in your
+-- PATH):
+--
+-- # environment setup for star-terminal elided; see star-terminal/start.sh for
+-- # an example
+--
+-- STAR_POST_VOTE_URL=localhost:8000 star-terminal -p 8001 &
+--
+-- STAR_POST_BALLOT_CODE_URLS=localhost:8001 star-controller -p 8000 &
+--
+-- curl -X POST localhost:8000/generateCode -d style=oregon-2014
+--
+-- # visit localhost:8001/ballots in your browser and type in the code printed
+-- # by the previous curl command; after being told you voted, you can then...
+--
+-- # visit localhost:8000/ballotBox in your browser
+
 type TMap k v = Map k (TVar v)
 data ControllerState = ControllerState
 	{ _seed :: StdGen
