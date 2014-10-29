@@ -34,35 +34,35 @@ main = statefulErrorServeDef voterStatusDB
 
 voterStatusDB :: (MonadSnap m, MonadTransaction StatusDB m, MonadError Text m) => m ()
 voterStatusDB = route
-	[ ("lookup", do
-		method GET
-		voter <- readURIParam "voter"
-		v <- transaction_ $ \db -> case M.lookup voter db of
-			Nothing -> return []
-			Just p  -> snd <$> STM.readTVar p
-		writeShow v
-	  )
-	, ("initialize", do
-		method POST
-		dbData <- readBodyParam "db"
-		db <- atomically $ buildStatusDB dbData
-		put db
-	  )
-	, ("atomicSwapStatus", do
-		method PATCH
-		voter  <- readBodyParam "voter"
-		status <- readBodyParam "status"
-		cont   <- transaction_ $ \db -> case M.lookup voter db of
-			Just p -> do
-				(oldStatus, precincts) <- STM.readTVar p
-				STM.writeTVar p (status, precincts)
-				return (writeShow oldStatus)
-			Nothing -> return (errorResponse "illegal voter")
-		cont
-	  )
-	]
+  [ ("lookup", do
+    method GET
+    voter <- readURIParam "voter"
+    v <- transaction_ $ \db -> case M.lookup voter db of
+      Nothing -> return []
+      Just p  -> snd <$> STM.readTVar p
+    writeShow v
+    )
+  , ("initialize", do
+    method POST
+    dbData <- readBodyParam "db"
+    db <- atomically $ buildStatusDB dbData
+    put db
+    )
+  , ("atomicSwapStatus", do
+    method PATCH
+    voter  <- readBodyParam "voter"
+    status <- readBodyParam "status"
+    cont   <- transaction_ $ \db -> case M.lookup voter db of
+      Just p -> do
+        (oldStatus, precincts) <- STM.readTVar p
+        STM.writeTVar p (status, precincts)
+        return (writeShow oldStatus)
+      Nothing -> return (errorResponse "illegal voter")
+    cont
+    )
+  ]
 
 buildStatusDB :: [(ID Voter, ID Precinct)] -> STM StatusDB
 buildStatusDB = traverse STM.newTVar . M.fromListWith combine . map inject where
-	combine (s1, ps1) (s2, ps2) = (s1, ps1 <> ps2)
-	inject (voter, precinct) = (voter, (Hasn't, [precinct]))
+  combine (s1, ps1) (s2, ps2) = (s1, ps1 <> ps2)
+  inject (voter, precinct) = (voter, (Hasn't, [precinct]))

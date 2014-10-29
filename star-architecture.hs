@@ -6,10 +6,10 @@ data VoterStatus
 
 data Book
 data BookSticker = BookSticker
-	{ voter    :: VoterID
-	, precinct :: Precinct -- invariant: matches the precinct in style
-	, style    :: BallotStyle
-	}
+  { voter    :: VoterID
+  , precinct :: Precinct -- invariant: matches the precinct in style
+  , style    :: BallotStyle
+  }
 data VoterSignature
 
 data Barcode a
@@ -17,69 +17,69 @@ data Digital a
 type BallotCastingID = Integer -- unique; MAY be predictable
 type BallotID = Integer -- unique and unpredictable
 data PaperBallot = PaperBallot
-	{ ballot :: Ballot
-	, castingID :: BallotCastingID
-	, id :: BallotID -- aka serial number
-	}
+  { ballot :: Ballot
+  , castingID :: BallotCastingID
+  , id :: BallotID -- aka serial number
+  }
 data Encrypted k a
 data Hash a
 data NIZK
 
 data Receipt = Receipt
-	{ hash :: Hash Ballot
-	, terminal :: Terminal
-	, time :: DateTime
-	}
+  { hash :: Hash Ballot
+  , terminal :: Terminal
+  , time :: DateTime
+  }
 
 data BBRecord
-	= EncryptedSpoiled
-		{ hash :: Hash Ballot
-		, encrypted :: Encrypted Trustees Ballot
-		}
-	| Vote
-		{ hash :: Hash Ballot
-		, wellFormed :: NIZK
-		}
-	| DecryptedSpoiled
-		{ hash :: Hash Ballot
-		, unencrypted :: Ballot
-		}
+  = EncryptedSpoiled
+    { hash :: Hash Ballot
+    , encrypted :: Encrypted Trustees Ballot
+    }
+  | Vote
+    { hash :: Hash Ballot
+    , wellFormed :: NIZK
+    }
+  | DecryptedSpoiled
+    { hash :: Hash Ballot
+    , unencrypted :: Ballot
+    }
 
 data StatusDB -- should be instantiated once
 type BallotDB = [(BallotCode, ID BallotStyle)]
 data Status = Unknown | Spoiled | Cast | ProvisionallyCast
 data DigitalBallot = DigitalBallot
-	{ bcid       :: BallotCastingID
-	, ballot     :: Encrypted Trustees Ballot
-	, status     :: Status
-	, wellFormed :: NIZK
-	, races      :: Encrypted Trustees (BallotID, [Race])
-	, terminalID :: Terminal
-	}
+  { bcid       :: BallotCastingID
+  , ballot     :: Encrypted Trustees Ballot
+  , status     :: Status
+  , wellFormed :: NIZK
+  , races      :: Encrypted Trustees (BallotID, [Race])
+  , terminalID :: Terminal
+  }
 type DigitalBallotBox = [DigitalBallot]
 type PaperBallotBox = [PaperBallot]
 type ProvisionalBallotBox = [(VoterID, PaperBallot)]
 
 data ControllerState = ControllerState
-	{ codes          :: BallotDB
-	, internalChains :: Map Terminal [HashChain Internal]
-	, publicChains   :: Map Terminal [HashChain Public]
-	, ballots        :: DigitalBallotBox
-	}
+  { codes          :: BallotDB
+  , internalChains :: Map Terminal [HashChain Internal]
+  , publicChains   :: Map Terminal [HashChain Public]
+  , ballots        :: DigitalBallotBox
+  }
 data TerminalState = TerminalState
-	{ initial  :: forall a. HashChain a
-	, internal :: HashChain Internal
-	, public   :: HashChain Public
-	, key      :: PublicKey Trustees
-	, styles   :: Map (ID BallotStyle) BallotStyle
-	, id       :: Terminal
-	}
+  { initial  :: forall a. HashChain a
+  , internal :: HashChain Internal
+  , public   :: HashChain Public
+  , key      :: PublicKey Trustees
+  , styles   :: Map (ID BallotStyle) BallotStyle
+  , id       :: Terminal
+  }
 data BallotPlus = BallotPlus
-	{ encrypted  :: Encrypted Trustees Ballot
-	, paper      :: PaperBallot
-	, receipt    :: Receipt
-	, wellFormed :: NIZK
-	}
+  { encrypted  :: Encrypted Trustees Ballot
+  , paper      :: PaperBallot
+  , receipt    :: Receipt
+  , wellFormed :: NIZK
+  }
 
 -- election setup operations
 initStatusDB :: [(VoterID, Precinct)] -> StatusDB
