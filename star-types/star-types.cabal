@@ -21,14 +21,17 @@ Library
                        Application.Star.SerializableBS,
                        Application.Star.Voter
   Build-depends:        
+    acid-state         >= 0.12.3 && < 0.13,
     aeson,
-    base               >= 4     && < 5,
+    base               >= 4      && < 5,
     base16-bytestring,
     binary,
     bytestring,
     cassava,
     containers,
-    random             >= 1     && < 2,
+    lens               >= 4.4    && < 4.6,
+    random             >= 1      && < 2,
+    safecopy           >= 0.8.3  && < 0.9,
     SHA,
     text,
     vector

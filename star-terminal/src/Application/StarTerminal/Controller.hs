@@ -60,7 +60,6 @@ import           Control.Monad.IO.Class (liftIO)
 import           Control.Monad.State (MonadState, get, state)
 import qualified Data.Aeson as JSON
 import           Data.ByteString (ByteString)
-import           Data.CaseInsensitive (mk)
 import           Data.List (foldl')
 import           Data.Maybe (catMaybes, fromJust, isNothing)
 import           Data.Text (Text, pack)
@@ -77,17 +76,18 @@ import           Network.HTTP.Client.TLS (tlsManagerSettings)
 import           Snap.Core hiding (method)
 import           System.Random (randomIO)
 import           Text.Blaze.Html5 (Html)
-import           Text.Blaze.Html.Renderer.Utf8 (renderHtml)
 
 import           Application.Star.Ballot
 import qualified Application.Star.Ballot as Ballot
 import           Application.Star.BallotStyle
 import qualified Application.Star.BallotStyle as BS
 import           Application.Star.HashChain
+import           Application.Star.Util (render)
 import           Application.StarTerminal.LinkHelper
 import           Application.StarTerminal.Localization
 import           Application.StarTerminal.View
 import           Application.StarTerminal.State
+
 
 type StarTerm m = (MonadError Text m, MonadState TerminalState m, MonadSnap m)
 
@@ -242,11 +242,6 @@ getBallot code = do
       sel <- getSelection style race
       return $ ((,) race) <$> sel
 
-render :: StarTerm m => Html -> m ()
-render h = do
-  modifyResponse $ setContentType "text/html"
-                 . setHeader (mk "Cache-Control") "max-age=0"
-  writeLBS (renderHtml h)
 
 param :: StarTerm m => Text -> m (Maybe Text)
 param k = do

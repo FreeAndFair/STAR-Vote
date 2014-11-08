@@ -9,6 +9,7 @@ import Control.Monad.Reader
 import Control.Monad.State
 import Data.Aeson
 import Data.ByteString (ByteString)
+import Data.CaseInsensitive (mk)
 import Data.Char
 import Data.Default
 import Data.Monoid
@@ -17,6 +18,8 @@ import Data.Text.Encoding
 import Snap.Core hiding (method)
 import Snap.Iteratee (TooManyBytesReadException)
 import Snap.Http.Server (quickHttpServe)
+import Text.Blaze.Html5 (Html)
+import Text.Blaze.Html.Renderer.Utf8 (renderHtml)
 import qualified Control.Concurrent.STM as STM
 import qualified Data.Map  as M
 import qualified Data.Text as T
@@ -110,6 +113,12 @@ reportWhere name (Right v) = return v
 readURIParam, readBodyParam :: (MonadError Text m, MonadSnap m, Read a) => ByteString -> m a
 readURIParam  = readParam rqQueryParams
 readBodyParam = readParam rqPostParams
+
+render :: MonadSnap m => Html -> m ()
+render h = do
+  modifyResponse $ setContentType "text/html"
+                 . setHeader (mk "Cache-Control") "max-age=0"
+  writeLBS (renderHtml h)
 
 -- a bunch of uninteresting instances {{{
 instance MonadTrans (TVarT s) where lift = TVarT . lift
