@@ -21,7 +21,7 @@ import Text.Printf
 
 
 starBarcodeConfig :: BarcodeConfig
-starBarcodeConfig = BarcodeConfig { height = 5 * styleHeight starStyle, barWidth = 0.5 }
+starBarcodeConfig = BarcodeConfig { height = 5 * styleHeight starStyle, barWidth = 0.75 }
 
 starFont :: PDFFont
 starFont = PDFFont Helvetica 5
