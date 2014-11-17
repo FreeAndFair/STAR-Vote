@@ -19,7 +19,7 @@ executable star-controller
   main-is:             Main.hs
   -- other-modules:       
   other-extensions:    FlexibleContexts, OverloadedStrings
-  build-depends:       aeson                     >=0.7  && <0.8,
+  build-depends:       aeson                     >=0.7  && <0.9,
                        base                      >=4.6  && <4.8,
                        http-client               >=0.4  && <0.5,
                        http-client-tls           >=0.2  && <0.3,
@@ -28,7 +28,7 @@ executable star-controller
                        star-util                 >=0.1  && <0.2,
                        stm                       >= 2.4 && <2.5,
                        text                      >= 1.2 && <1.3,
-                       unix                      >= 2.6 && <2.7,
+                       unix                      >= 2.6 && <2.8,
                        unordered-containers      >=0.2  && <0.3,
                        MonadCatchIO-transformers >=0.3  && <0.4,
                        random                    >=1.0  && <1.1,
