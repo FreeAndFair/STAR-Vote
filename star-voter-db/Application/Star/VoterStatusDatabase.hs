@@ -154,21 +154,6 @@ openDB = do name <- liftIO (getDataFileName "voterdb")
             liftIO $ flip openLocalStateFrom (StatusDB M.empty []) name
 
 
-doQuery :: (MonadIO m, MonadState (AcidState (EventState event)) m, QueryEvent event)
-          => event
-          -> m (EventResult event)
-doQuery e = do st <- get
-               liftIO (query st e)
-
-
-doUpdate :: (MonadIO m, MonadState (AcidState (EventState event)) m, UpdateEvent event)
-           => event
-           -> m (EventResult event)
-doUpdate e = do st <- get
-                res <- liftIO (update st e)
-                put st
-                return res
-
 doCheckpoint :: (MonadIO m, MonadState (AcidState a) m) => m ()
 doCheckpoint = get >>= liftIO . createCheckpoint
 

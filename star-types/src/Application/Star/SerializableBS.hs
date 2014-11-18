@@ -1,4 +1,5 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving,
+             TemplateHaskell #-}
 
 {-|
 Module      : Application.Star.SerializableBS
@@ -18,10 +19,13 @@ import           Data.Binary (Binary, get, put)
 import qualified Data.ByteString.Base16.Lazy as B16
 import           Data.ByteString.Lazy (ByteString)
 import           Data.Monoid (Monoid)
+import           Data.SafeCopy (deriveSafeCopy, base)
 import           Data.Text.Lazy.Encoding (encodeUtf8, decodeUtf8)
 
 newtype SerializableBS = SB { fromSB :: ByteString }
   deriving (Monoid)
+
+$(deriveSafeCopy 0 'base ''SerializableBS)
 
 instance Binary SerializableBS where
   put (SB bs) = putLazyByteString bs

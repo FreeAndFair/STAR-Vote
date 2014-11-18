@@ -7,6 +7,7 @@ import Control.Monad.CatchIO
 import Control.Monad.Except
 import Control.Monad.Reader
 import Control.Monad.State
+import Data.Acid (AcidState, EventResult, EventState, QueryEvent, UpdateEvent, query, update)
 import Data.Aeson
 import Data.ByteString (ByteString)
 import Data.CaseInsensitive (mk)
@@ -51,6 +52,23 @@ instance MonadIO m => MonadTransaction s (TVarT s m) where
 
 atomically :: MonadIO m => STM a -> m a
 atomically = liftIO . STM.atomically
+
+
+-- | Run an ACID-state query in a smart enough monad
+doQuery :: (MonadIO m, MonadState (AcidState (EventState event)) m, QueryEvent event)
+          => event
+          -> m (EventResult event)
+doQuery e = do st <- get
+               liftIO (query st e)
+
+-- | Run an ACID-state update in a smart enough monad
+doUpdate :: (MonadIO m, MonadState (AcidState (EventState event)) m, UpdateEvent event)
+           => event
+           -> m (EventResult event)
+doUpdate e = do st <- get
+                res <- liftIO (update st e)
+                put st
+                return res
 
 errorResponse :: MonadSnap m => Text -> m ()
 errorResponse err = modifyResponse (setResponseCode 400) >> writeText err

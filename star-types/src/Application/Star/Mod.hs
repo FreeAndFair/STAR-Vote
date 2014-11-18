@@ -1,12 +1,18 @@
+{-# LANGUAGE DeriveDataTypeable,
+             TemplateHaskell #-}
 module Application.Star.Mod (Bound(..), Mod) where
 
 import Control.Applicative
 import Control.Arrow
 import Data.Function (fix)
+import Data.SafeCopy (deriveSafeCopy, base)
+import Data.Typeable
 import System.Random
 
 class Bound m where bound :: proxy m -> Integer
-newtype Mod m = Mod Integer deriving (Eq, Ord)
+newtype Mod m = Mod Integer deriving (Eq, Ord, Typeable)
+$(deriveSafeCopy 0 'base ''Mod)
+
 instance Show (Mod m) where showsPrec n (Mod m) = showsPrec n m
 
 instance Bound m => Read (Mod m) where

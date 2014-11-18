@@ -1,4 +1,11 @@
-{-# LANGUAGE FlexibleContexts, FlexibleInstances, OverloadedStrings, Rank2Types, TemplateHaskell #-}
+{-# LANGUAGE DeriveDataTypeable,
+             FlexibleContexts,
+             FlexibleInstances,
+             OverloadedStrings,
+             Rank2Types,
+             TemplateHaskell,
+             TypeFamilies
+ #-}
 module Application.Star.Controller where
 
 import Application.Star.Ballot
@@ -12,10 +19,12 @@ import Application.Star.CommonImports
 import Control.Arrow
 import Control.Concurrent
 import Control.Lens
+import Data.Acid
 import Data.Aeson
 import Data.Char
 import Data.List.Split
 import Data.Maybe
+import Data.SafeCopy
 import Network.HTTP.Client hiding (method)
 import Network.HTTP.Client.TLS
 import System.Environment
@@ -32,6 +41,8 @@ import qualified Data.Map  as M
 import qualified Data.Set  as S
 import qualified Data.Text as T
 import qualified Network.HTTP.Client as HTTP
+
+import Paths_star_controller
 
 -- entry points:
 -- GET  generateCode
@@ -72,7 +83,8 @@ import qualified Network.HTTP.Client as HTTP
 --
 -- # visit localhost:8000/ballotBox in your browser
 
-type TMap k v = Map k (TVar v)
+$(deriveSafeCopy 0 'base ''StdGen)
+
 data ControllerState = ControllerState
   { _seed :: StdGen
   -- TODO: following discussions with Jesse, we think it may make more sense
@@ -81,90 +93,164 @@ data ControllerState = ControllerState
   , _broadcastURLs :: [String]
   , _ballotStyles :: Set BallotCode
   -- ballotBox invariant: the bcid in the EncryptedRecord matches the key it's filed under in the Map
-  , _ballotBox :: TMap BallotCastingId (BallotStatus, EncryptedRecord)
+  , _ballotBox :: Map BallotCastingId (BallotStatus, EncryptedRecord)
   }
+$(deriveSafeCopy 0 'base ''ControllerState)
 $(makeLenses ''ControllerState)
 
 instance ToJSON v => ToJSON (Map BallotCastingId v) where
   toJSON m = Object $ HM.fromList [(k, toJSON v) | (BallotCastingId k, v) <- M.toList m]
 
+
+
+
+
+------------------------------
+-- Controller state operations
+------------------------------
+
+-- up here due to TH ordering restriction
+-- | Run a lens over a state
+state' :: MonadState s m => Lens s s t t -> (t -> (a, t)) -> m a
+state' lens f = state (\s -> second (flip (set lens) s) (f (view lens s)))
+
+-- | generateCode generates a fresh code by first trying a few random codes; if
+-- that doesn't pan out, it searches all possible codes for any it could use
+generateCode :: Update ControllerState (Either Text BallotCode)
+generateCode = do code <- randomCode retries
+                  case code of
+                    Just c  -> return (Right c)
+                    Nothing -> minimalCode
+  where retries = 20 -- magic number picked out of a hat
+
+-- | Adds a new random code, with n retries
+randomCode :: Integer -> Update ControllerState (Maybe BallotCode)
+randomCode n
+  | n > 0 = do
+    c       <- state' seed random
+    success <- state' ballotStyles (registerCode c)
+    if success then return (Just c) else randomCode (n-1)
+  | otherwise = return Nothing
+
+minimalCode :: Update ControllerState (Either Text BallotCode)
+minimalCode = 
+  do db <- view ballotStyles <$> get
+     case S.minView (S.difference allCodes db) of
+       Just (code, _) -> do modify (over ballotStyles (S.insert code))
+                            return (Right code)
+       Nothing        -> return (Left "all ballot codes in use")
+
+-- | All possible ballot codes
+allCodes :: Set BallotCode
+allCodes = S.fromList [minBound..maxBound]
+
+-- | Given a ballot code and a set of ballot codes, add the code and
+-- return whether it was not previously in the set.
+registerCode :: BallotCode -> Set BallotCode -> (Bool, Set BallotCode)
+registerCode code db
+  | not (code `S.member` db) = (True, S.insert code db)
+  | otherwise = (False, db)
+
+
+reseed :: StdGen -> Update ControllerState ()
+reseed s = modify (set seed s)
+
+getBroadcastURLs :: Query ControllerState [String]
+getBroadcastURLs = view broadcastURLs <$> ask
+
+fillOut :: EncryptedRecord -> Update ControllerState ()
+fillOut ballot =
+  -- TODO: is it okay to always insert? do we need to check that it
+  -- isn't there first or something?
+  modify (over ballotBox (M.insert (view bcid ballot) (Unknown, ballot)))
+
+setUnknownBallotTo :: BallotStatus -> BallotCastingId -> Update ControllerState (Either Text ())
+setUnknownBallotTo status bcid =
+  do st <- get
+     case view (ballotBox . at bcid) st of
+       Just (Unknown, record) ->
+         modify (over ballotBox (M.insert bcid (status, record))) >> return (Right ())
+       Just (status', record) ->
+         return . Left $ T.pack (show bcid) <> " was already " <> T.pack (map toLower (show status'))
+       _ -> return . Left $ "Unknown " <> T.pack (show bcid)
+
+readEntireBallotBox :: Query ControllerState (Map BallotCastingId (BallotStatus, EncryptedRecord))
+readEntireBallotBox = view ballotBox <$> ask
+
+$(makeAcidic ''ControllerState [ 'generateCode
+                               , 'minimalCode
+                               , 'reseed
+                               , 'getBroadcastURLs
+                               , 'fillOut
+                               , 'setUnknownBallotTo
+                               , 'readEntireBallotBox
+                               ])
+
+---------------------
+-- I/O and interfaces
+---------------------
+
+
 main :: IO ()
 main = do
   seed <- getStdGen
   urls <- maybe ["http://terminal/ballots"] (splitOn ";") <$> lookupEnv "STAR_POST_BALLOT_CODE_URLS"
-  statefulErrorServe controller $ ControllerState seed urls def def
+  filename <- liftIO $ getDataFileName "controllerState"
+  st <- liftIO (openLocalStateFrom filename (ControllerState seed urls def def))
+  update st (Reseed seed)
+  statefulErrorServe controller $ st
 
-controller :: (MonadError Text m, MonadTransaction ControllerState m, MonadSnap m) => m ()
+controller :: (MonadError Text m, MonadTransaction (AcidState ControllerState) m, MonadSnap m) => m ()
 controller = route $
   [ ("generateCode",
      method POST
       (do styleID <- decodeParam rqPostParams "style"
-          code    <- generateCode
-          broadcast code styleID
-          writeShow code) <|>
+          code    <- doUpdate GenerateCode
+          case code of
+            Left err -> throwError err
+            Right c -> do broadcast c styleID
+                          writeShow c) <|>
      method GET
        (do render . pageHtml . set pageTitle "Vote!" . flip (set pageContents) blankPage $
              H.form ! A.method "POST" $ do
-               H.input ! A.id "sticker" ! A.name "sticker" ! A.type_ "text" 
+               H.input ! A.id "sticker" ! A.name "sticker" ! A.type_ "text"
                H.input ! A.type_ "submit")
     )
   , ("fillOut",
      method POST $
        do ballot <- readJSONBody
-          transaction (fillOut ballot)
+          doUpdate (FillOut ballot)
     )
-  , ("cast", 
+  , ("cast",
      method POST $
        do castingID <- BallotCastingId <$> readBodyParam "bcid"
-          setUnknownBallotTo Cast castingID
+          res <- doUpdate $ SetUnknownBallotTo Cast castingID
+          case res of
+            Left err -> throwError err
+            Right () -> return ()
     )
   , ("spoil",
      method POST $
        do castingID <- BallotCastingId <$> readBodyParam "bcid"
-          setUnknownBallotTo Spoiled castingID
+          res <- doUpdate $ SetUnknownBallotTo Spoiled castingID
+          case res of
+            Left err -> throwError err
+            Right () -> return ()
     )
   , ("ballotBox",
      method GET $
-       do v <- readEntireBallotBox
+       do v <- doQuery ReadEntireBallotBox
           writeLBS . encode $ v
     )
   -- TODO: provisional casting
   ]
 
--- generateCode generates a fresh code by first trying a few random codes; if
--- that doesn't pan out, it searches all possible codes for any it could use
--- {{{
-generateCode :: (MonadError Text m, MonadState ControllerState m, Alternative m) => m BallotCode
-generateCode = randomCode retries <|> minimalCode where
-  retries = 20 -- magic number picked out of a hat
 
-randomCode :: (MonadState ControllerState m, MonadError Text m) => Integer -> m BallotCode
-randomCode n
-  | n > 0 = do
-    c       <- state' seed random
-    success <- state' ballotStyles (registerCode c)
-    if success then return c else randomCode (n-1)
-  | otherwise = throwError "random code search exhausted without finding a fresh code"
 
-minimalCode :: (MonadError Text m, MonadState ControllerState m) => m BallotCode
-minimalCode = join $ state' ballotStyles go where
-  go db = case S.minView (S.difference allCodes db) of
-    Just (code, _) -> (return code, S.insert code db)
-    Nothing        -> (throwError "all ballot codes in use", db)
-
-allCodes :: Set BallotCode
-allCodes = S.fromList [minBound..maxBound]
-
-registerCode :: BallotCode -> Set BallotCode -> (Bool, Set BallotCode)
-registerCode code db
-  | not (code `S.member` db) = (True, S.insert code db)
-  | otherwise = (False, db)
--- }}}
-
-broadcast :: (MonadState ControllerState m, MonadError Text m, MonadSnap m)
+broadcast :: (MonadState (AcidState ControllerState) m, MonadError Text m, MonadSnap m)
           => BallotCode -> BallotStyleId -> m ()
 broadcast code styleID = do
-  bases <- gets _broadcastURLs
+  bases <- doQuery GetBroadcastURLs
   urlRequests <- mapM (errorT . parseUrl . urlFor) bases
   -- for now, no error-handling of any kind
   mapM_ (liftIO . forkIO . void . post) urlRequests
@@ -174,25 +260,6 @@ broadcast code styleID = do
   errorT (Right v) = return v
   post r = withManager tlsManagerSettings (httpNoBody r { HTTP.method = "POST" })
 
-fillOut :: EncryptedRecord -> ControllerState -> STM ((), ControllerState)
-fillOut ballot s = do
-  p <- STM.newTVar (Unknown, ballot)
-  -- TODO: is it okay to always insert? do we need to check that it
-  -- isn't there first or something?
-  return ((), set ballotBox (M.insert (_bcid ballot) p (_ballotBox s)) s)
 
-setUnknownBallotTo :: (MonadTransaction ControllerState m, MonadError Text m) => BallotStatus -> BallotCastingId -> m ()
-setUnknownBallotTo status bcid = join . transaction_ $ \s -> do
-  case M.lookup bcid (_ballotBox s) of
-    Just p -> do
-      (status, record) <- STM.readTVar p
-      case status of
-        Unknown -> STM.writeTVar p (status, record) >> return (return ())
-        _ -> return (throwError $ T.pack (show bcid) <> " was already " <> T.pack (map toLower (show status)))
-    _ -> return (throwError $ "Unknown " <> T.pack (show bcid))
 
-readEntireBallotBox :: MonadTransaction ControllerState m => m (Map BallotCastingId (BallotStatus, EncryptedRecord))
-readEntireBallotBox = transaction_ $ traverse STM.readTVar . _ballotBox
 
-state' :: MonadState s m => Lens s s t t -> (t -> (a, t)) -> m a
-state' lens f = state (\s -> second (flip (set lens) s) (f (view lens s)))

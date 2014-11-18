@@ -1,6 +1,4 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE TemplateHaskell #-}
+{-# LANGUAGE DeriveDataTypeable, GeneralizedNewtypeDeriving, OverloadedStrings, TemplateHaskell #-}
 
 {-|
 Module      : Application.Star.HashChain
@@ -18,14 +16,23 @@ module Application.Star.HashChain
   , InternalHash (..)
   , Proof
   , PublicHash (..)
-  , PublicKey (..)
+  , PublicKey
   , TerminalId (..)
   , encryptBallot
   , encryptRaces
   , encryptRecord
   , internalHash
   , publicHash
+  -- * Hash chain lenses
+  , m
+  , bcid
+  , cv
+  , cbid
+  , zi
+  , zp
   ) where
+
+import           Control.Lens
 
 import           Data.Aeson (FromJSON, ToJSON)
 import           Data.Aeson.TH (defaultOptions, deriveJSON)
@@ -36,29 +43,38 @@ import qualified Data.ByteString.Lazy as BS
 import           Data.Digest.Pure.SHA (bytestringDigest, sha256)
 import           Data.List (foldl')
 import           Data.Monoid (mempty)
+import           Data.SafeCopy
+import           Data.Typeable
 
 import           Application.Star.Ballot
 import           Application.Star.SerializableBS
 
 newtype TerminalId = TerminalId SerializableBS
   deriving (Binary, FromJSON, ToJSON)
+$(deriveSafeCopy 0 'base ''TerminalId)
 
 newtype Encrypted a = Encrypted SerializableBS
   deriving (Binary, FromJSON, ToJSON)
+$(deriveSafeCopy 0 'base ''Encrypted)
 
 newtype PublicHash = PublicHash SerializableBS
   deriving (Binary, FromJSON, ToJSON)
+$(deriveSafeCopy 0 'base ''PublicHash)
 
 newtype InternalHash = InternalHash SerializableBS
   deriving (Binary, FromJSON, ToJSON)
+$(deriveSafeCopy 0 'base ''InternalHash)
 
 type Hash a = SerializableBS
 
 -- TODO:
 newtype Proof a = Proof SerializableBS
-  deriving (Binary, FromJSON, ToJSON)
+  deriving (Binary, FromJSON, ToJSON, Typeable)
+$(deriveSafeCopy 0 'base ''Proof)
+
 newtype Ext a = Ext SerializableBS
-  deriving (Binary, FromJSON, ToJSON)
+  deriving (Binary, FromJSON, ToJSON, Typeable)
+$(deriveSafeCopy 0 'base ''Ext)
 
 data EncryptedRecord = EncryptedRecord
   { _bcid :: BallotCastingId
@@ -70,8 +86,11 @@ data EncryptedRecord = EncryptedRecord
   , _zp   :: PublicHash
   , _zi   :: InternalHash
   }
-
+  deriving Typeable
 $(deriveJSON defaultOptions ''EncryptedRecord)
+$(deriveSafeCopy 0 'base ''EncryptedRecord)
+$(makeLenses ''EncryptedRecord)
+
 
 encryptRecord :: PublicKey   -- ^ public key issued by election authority; used to encrypt vote
               -> TerminalId  -- ^ unique ID of the terminal used to produce ballot
