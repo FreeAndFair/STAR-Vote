@@ -21,6 +21,7 @@ executable star-controller
   other-extensions:    FlexibleContexts, OverloadedStrings
   build-depends:       aeson                     >=0.7  && <0.9,
                        base                      >=4.6  && <4.8,
+                       blaze-html                >=0.7  && <0.8,
                        http-client               >=0.4  && <0.5,
                        http-client-tls           >=0.2  && <0.3,
                        split                     >=0.2  && <0.3,

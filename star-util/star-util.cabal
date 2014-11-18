@@ -13,6 +13,7 @@ Cabal-version:       >=1.2
 Library
   hs-source-dirs: src
   Exposed-modules:     Application.Star.CommonImports,
+                       Application.Star.Templates,
                        Application.Star.Util
   Build-depends:        
     aeson                     >= 0.7   && < 0.9,
@@ -22,6 +23,7 @@ Library
     case-insensitive          >= 1.2   && < 1.3,
     containers,
     data-default,
+    lens                      >= 4.4   && <4.7,
     MonadCatchIO-transformers,
     mtl                       >= 2.2.1,
     text,

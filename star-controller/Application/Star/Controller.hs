@@ -6,8 +6,9 @@ import Application.Star.BallotStyle
 import Application.Star.HashChain
 import Application.Star.ID
 import Application.Star.SerializableBS
-import Application.Star.Util
-import Application.Star.CommonImports hiding (method)
+import Application.Star.Templates
+import Application.Star.Util hiding (method)
+import Application.Star.CommonImports
 import Control.Arrow
 import Control.Concurrent
 import Control.Lens
@@ -20,6 +21,11 @@ import Network.HTTP.Client.TLS
 import System.Environment
 import System.Random
 
+import qualified Text.Blaze.Html5 as H
+import qualified Text.Blaze.Html5.Attributes as A
+
+import Text.Blaze.Html5 ((!))
+
 import qualified Control.Concurrent.STM as STM
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map  as M
@@ -28,6 +34,9 @@ import qualified Data.Text as T
 import qualified Network.HTTP.Client as HTTP
 
 -- entry points:
+-- GET  generateCode
+--      input: none
+--      output: a Web form for the poll worker to scan the sticker
 -- POST generateCode
 -- 	input:  POST body parameter named "style" containing UTF-8 encoded text
 -- 	        specifying a ballot style (which will be passed off to the voting
@@ -74,8 +83,8 @@ data ControllerState = ControllerState
   -- ballotBox invariant: the bcid in the EncryptedRecord matches the key it's filed under in the Map
   , _ballotBox :: TMap BallotCastingId (BallotStatus, EncryptedRecord)
   }
+$(makeLenses ''ControllerState)
 
-makeLenses ''ControllerState
 instance ToJSON v => ToJSON (Map BallotCastingId v) where
   toJSON m = Object $ HM.fromList [(k, toJSON v) | (BallotCastingId k, v) <- M.toList m]
 
@@ -87,32 +96,37 @@ main = do
 
 controller :: (MonadError Text m, MonadTransaction ControllerState m, MonadSnap m) => m ()
 controller = route $
-  [ ("generateCode", do
-    method POST
-    styleID <- decodeParam rqPostParams "style"
-    code    <- generateCode
-    broadcast code styleID
-    writeShow code
+  [ ("generateCode",
+     method POST
+      (do styleID <- decodeParam rqPostParams "style"
+          code    <- generateCode
+          broadcast code styleID
+          writeShow code) <|>
+     method GET
+       (do render . pageHtml . set pageTitle "Vote!" . flip (set pageContents) blankPage $
+             H.form ! A.method "POST" $ do
+               H.input ! A.id "sticker" ! A.name "sticker" ! A.type_ "text" 
+               H.input ! A.type_ "submit")
     )
-  , ("fillOut", do
-    method POST
-    ballot <- readJSONBody
-    transaction (fillOut ballot)
+  , ("fillOut",
+     method POST $
+       do ballot <- readJSONBody
+          transaction (fillOut ballot)
     )
-  , ("cast", do
-    method POST
-    castingID <- BallotCastingId <$> readBodyParam "bcid"
-    setUnknownBallotTo Cast castingID
+  , ("cast", 
+     method POST $
+       do castingID <- BallotCastingId <$> readBodyParam "bcid"
+          setUnknownBallotTo Cast castingID
     )
-  , ("spoil", do
-    method POST
-    castingID <- BallotCastingId <$> readBodyParam "bcid"
-    setUnknownBallotTo Spoiled castingID
+  , ("spoil",
+     method POST $
+       do castingID <- BallotCastingId <$> readBodyParam "bcid"
+          setUnknownBallotTo Spoiled castingID
     )
-  , ("ballotBox", do
-    method GET
-    v <- readEntireBallotBox
-    writeLBS . encode $ v
+  , ("ballotBox",
+     method GET $
+       do v <- readEntireBallotBox
+          writeLBS . encode $ v
     )
   -- TODO: provisional casting
   ]

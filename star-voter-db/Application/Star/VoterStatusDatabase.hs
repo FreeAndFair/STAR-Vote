@@ -6,7 +6,7 @@
              TypeFamilies       #-}
 module Application.Star.VoterStatusDatabase where
 
-import Application.Star.VoterStatusTemplates
+import Application.Star.Templates
 import Application.Star.VoterStatusForms
 
 import Application.Star.CommonImports

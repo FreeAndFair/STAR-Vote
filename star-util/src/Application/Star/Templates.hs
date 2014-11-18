@@ -1,10 +1,9 @@
 {-# LANGUAGE OverloadedStrings, TemplateHaskell #-}
-module Application.Star.VoterStatusTemplates where
+module Application.Star.Templates where
 
-import Control.Lens (over, view)
+import Control.Lens (view)
 import Control.Lens.TH
 
-import Data.Default (Default(..))
 import Data.Monoid
 
 import qualified Data.Text as T
@@ -12,9 +11,6 @@ import qualified Data.Text as T
 import Text.Blaze.Html5 hiding (map, p)
 import Text.Blaze.Html5.Attributes hiding (id, method)
 import qualified Text.Blaze.Html5 as H
-import qualified Text.Blaze.Html5.Attributes as A
-import Text.Blaze.Html.Renderer.Utf8
-
 
 data Page = Page
   { _pageTitle :: T.Text
@@ -45,4 +41,3 @@ pageHtml p =
     body $ do
       h1 (toHtml (view pageTitle p))
       view pageContents p
-
