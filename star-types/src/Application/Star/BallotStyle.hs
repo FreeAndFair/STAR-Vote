@@ -1,4 +1,6 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE OverloadedStrings  #-}
+{-# LANGUAGE TemplateHaskell    #-}
 
 {-|
 Module      : Application.Star.BallotStyle
@@ -10,38 +12,49 @@ where each race includes a list of candidates.
 -}
 module Application.Star.BallotStyle where
 
-import qualified Data.List as List
-import           Data.Maybe (fromMaybe)
-import           Data.Text (Text)
-import qualified Data.Text as T
+import Control.Lens
+
+import qualified Data.List     as List
+import           Data.Maybe    (fromMaybe)
+import           Data.SafeCopy (base, deriveSafeCopy)
+import           Data.Text     (Text)
+import qualified Data.Text     as T
+import           Data.Typeable
 
 type BallotStyleId = Text
 type RaceId = Text
 type OptionId = Text
-type BallotStyles = [(BallotStyle)]
 
 type BallotKey = Text
 
-data BallotStyle = BallotStyle
-  { _bId :: BallotStyleId
-  , _bRaces :: [Race]
+data Option = Option
+  { _oId         :: OptionId
+  , _oName       :: Text
+  , _oParty      :: Maybe Text
+  , _oOccupation :: Maybe Text
   }
-  deriving Show
+  deriving (Show, Typeable)
+$(deriveSafeCopy 0 'base ''Option)
+$(makeLenses ''Option)
 
 data Race = Race
   { _rDescription :: Text
-  , _rId :: RaceId
-  , _rOptions :: [Option]
+  , _rId          :: RaceId
+  , _rOptions     :: [Option]
   }
-  deriving Show
+  deriving (Show, Typeable)
+$(deriveSafeCopy 0 'base ''Race)
+$(makeLenses ''Race)
 
-data Option = Option
-  { _oId :: OptionId
-  , _oName :: Text
-  , _oParty :: Maybe Text
-  , _oOccupation :: Maybe Text
+data BallotStyle = BallotStyle
+  { _bId    :: BallotStyleId
+  , _bRaces :: [Race]
   }
-  deriving Show
+  deriving (Show, Typeable)
+$(deriveSafeCopy 0 'base ''BallotStyle)
+$(makeLenses ''BallotStyle)
+
+type BallotStyles = [(BallotStyle)]
 
 lookup :: BallotStyleId -> BallotStyles -> Maybe BallotStyle
 lookup bId styles = safeHead (filter ((== bId) . _bId) styles)
@@ -49,8 +62,6 @@ lookup bId styles = safeHead (filter ((== bId) . _bId) styles)
 bRace :: RaceId -> BallotStyle -> Maybe Race
 bRace rId style = safeHead (filter ((== rId) . _rId) (_bRaces style))
 
-bRaces :: BallotStyle -> [Race]
-bRaces = _bRaces
 
 -- | Given a ballot style and a race,
 -- returns the next race defined by the ballot style.
@@ -68,7 +79,7 @@ incRace n style race = if idx + n < length races && idx + n >= 0 then
   else
     Nothing
   where
-    races = bRaces style
+    races = view bRaces style
     idx = fromMaybe (-1) $ List.findIndex ((== _rId race) . _rId) races
 
 

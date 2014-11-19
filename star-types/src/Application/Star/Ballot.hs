@@ -1,9 +1,8 @@
-{-# LANGUAGE DeriveDataTypeable,
-             EmptyDataDecls,
-             GeneralizedNewtypeDeriving,
-             OverloadedStrings,
-             TemplateHaskell
-             #-}
+{-# LANGUAGE DeriveDataTypeable         #-}
+{-# LANGUAGE EmptyDataDecls             #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE TemplateHaskell            #-}
 
 {-|
 Module      : Application.Star.Ballot
@@ -17,23 +16,24 @@ Serialization is achieved using CSV format (with tab-separated fields).
 -}
 module Application.Star.Ballot where
 
-import           Data.Aeson (FromJSON, ToJSON)
-import           Data.Aeson.TH (deriveJSON, defaultOptions)
-import           Data.Binary (Binary, get, put)
-import qualified Data.Binary as B
-import           Data.Binary.Get (getRemainingLazyByteString)
-import           Data.Binary.Put (putLazyByteString)
-import           Data.Csv (DecodeOptions(..), EncodeOptions(..))
-import qualified Data.Csv as CSV
-import           Data.Map (Map)
-import qualified Data.Map as Map
-import           Data.SafeCopy (deriveSafeCopy, base)
-import           Data.Text (Text)
-import           Data.Text.Lazy (fromStrict, toStrict)
-import           Data.Text.Lazy.Encoding (decodeUtf8, encodeUtf8)
+import           Data.Aeson                      (FromJSON, ToJSON)
+import           Data.Aeson.TH                   (defaultOptions, deriveJSON)
+import           Data.Binary                     (Binary, get, put)
+import qualified Data.Binary                     as B
+import           Data.Binary.Get                 (getRemainingLazyByteString)
+import           Data.Binary.Put                 (putLazyByteString)
+import           Data.Csv                        (DecodeOptions (..),
+                                                  EncodeOptions (..))
+import qualified Data.Csv                        as CSV
+import           Data.Map                        (Map)
+import qualified Data.Map                        as Map
+import           Data.SafeCopy                   (base, deriveSafeCopy)
+import           Data.Text                       (Text)
+import           Data.Text.Lazy                  (fromStrict, toStrict)
+import           Data.Text.Lazy.Encoding         (decodeUtf8, encodeUtf8)
 import           Data.Typeable
-import           Data.Vector ((!?))
-import qualified Data.Vector as Vector
+import           Data.Vector                     ((!?))
+import qualified Data.Vector                     as Vector
 
 import           Application.Star.BallotStyle
 import           Application.Star.Mod

@@ -6,30 +6,31 @@ Description : HTML views
  -}
 module Application.StarTerminal.View where
 
-import           Data.List (foldl')
-import           Data.Maybe (isJust)
-import           Data.Monoid ((<>), mempty)
-import           Data.Text (Text)
-import qualified Data.Text as T
-import           Text.Blaze.Html5 hiding (code)
+import           Control.Lens
+import           Data.List                             (foldl')
+import           Data.Maybe                            (isJust)
+import           Data.Monoid                           (mempty, (<>))
+import           Data.Text                             (Text)
+import qualified Data.Text                             as T
+import           Prelude                               hiding (div)
+import           Text.Blaze.Html5                      hiding (code)
+import qualified Text.Blaze.Html5                      as H
 import           Text.Blaze.Html5.Attributes
-import qualified Text.Blaze.Html5 as H
-import qualified Text.Blaze.Html5.Attributes as A
-import           Text.Blaze.Internal (attribute)
-import           Prelude hiding (div)
+import qualified Text.Blaze.Html5.Attributes           as A
+import           Text.Blaze.Internal                   (attribute)
 
 import           Application.Star.Ballot
-import qualified Application.Star.Ballot as Ballot
+import qualified Application.Star.Ballot               as Ballot
 import           Application.Star.BallotStyle
-import qualified Application.Star.BallotStyle as BS
+import qualified Application.Star.BallotStyle          as BS
 import           Application.StarTerminal.LinkHelper
 import           Application.StarTerminal.Localization
 
 -- | Defines URLs for links in the navigation bar when viewing ballot steps.
 -- If no link is given, the corresponding button is not drawn.
 data NavLinks = NavLinks
-  { _prev :: Maybe Text   -- ^ "previous step" button URL
-  , _next :: Maybe Text   -- ^ "next step" button URL
+  { _prev  :: Maybe Text   -- ^ "previous step" button URL
+  , _next  :: Maybe Text   -- ^ "next step" button URL
   , _index :: Maybe Text  -- ^ "show progress" button URL
   }
 
@@ -92,7 +93,7 @@ summaryView ts code bStyle ballot =
       div ! class_ "page-header" $ do
         h1 (t "summary" ts)
       foldl' (\h race -> h <> summaryItemView ts code bStyle race ballot)
-        mempty (bRaces bStyle)
+        mempty (view bRaces bStyle)
 
 summaryItemView :: Translations -> BallotCode -> BallotStyle -> Race -> Ballot -> Html
 summaryItemView _ code bStyle race ballot =

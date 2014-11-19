@@ -1,4 +1,7 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE OverloadedStrings  #-}
+{-# LANGUAGE TemplateHaskell    #-}
+{-# LANGUAGE TypeFamilies       #-}
 
 {-|
 Module      : Application.StarTerminal.State
@@ -24,15 +27,29 @@ The mappings of environment variables are:
 `STAR_PUBLIC_SALT` must be encoded strings using base-16.  The hashes and salt
 must each be 256 bits.
  -}
-module Application.StarTerminal.State where
+module Application.StarTerminal.State (
+  -- * The initial terminal configuration
+  Terminal(Terminal), tId, pubkey, zp0, zi0, z0, postUrl,
+  -- * The running state of the terminal
+  TerminalState(TerminalState), recordedVotes, ballotCodes, terminal,
+  -- * AcidState actions for working with saved TerminalStates
+  GetTerminalConfig(..), InsertCode(..), LookupBallotStyle(..), RecordVote(..)
+  ) where
 
-import           Data.ByteString.Lazy (ByteString)
-import           Data.Map (Map)
-import qualified Data.Map as Map
+import           Control.Applicative          ((<$>))
+import           Control.Lens
+import           Control.Monad.Reader         (ask)
+import           Control.Monad.State          (modify)
 
-import           Application.Star.HashChain
+import           Data.Acid                    (Query, Update, makeAcidic)
+import           Data.ByteString.Lazy         (ByteString)
+import           Data.Map                     (Map)
+import           Data.SafeCopy                (base, deriveSafeCopy)
+import           Data.Typeable
+
 import           Application.Star.Ballot
 import           Application.Star.BallotStyle
+import           Application.Star.HashChain
 
 data TerminalState = TerminalState
   {
@@ -48,6 +65,8 @@ data TerminalState = TerminalState
   , _terminal      :: Terminal
   }
 
+
+
 -- \ Records configuration paramaters that should not change while the terminal
 -- is in operation.
 data Terminal = Terminal
@@ -57,13 +76,24 @@ data Terminal = Terminal
   , _zi0     :: InternalHash  -- ^ initial hash for the non-public hash chain
   , _z0      :: ByteString    -- ^ public, random salt
   , _postUrl :: String        -- ^ The terminal posts each encrypted vote to this URL
-  }
+  } deriving Typeable
 
-insertCode :: BallotCode -> BallotStyle -> TerminalState -> TerminalState
-insertCode code style s = s { _ballotCodes = codes' }
-  where
-    codes  = _ballotCodes s
-    codes' = Map.insert code style codes
+$(makeLenses ''TerminalState)
+$(makeLenses ''Terminal)
+$(deriveSafeCopy 0 'base ''Terminal)
+$(deriveSafeCopy 0 'base ''TerminalState)
 
-lookupBallotStyle :: BallotCode -> TerminalState -> Maybe BallotStyle
-lookupBallotStyle code s = Map.lookup code (_ballotCodes s)
+insertCode :: BallotCode -> BallotStyle -> Update TerminalState ()
+insertCode code style = modify $ set (ballotCodes . at code) (Just style)
+
+lookupBallotStyle :: BallotCode -> Query TerminalState (Maybe BallotStyle)
+lookupBallotStyle code = view (ballotCodes . at code) <$> ask
+
+recordVote :: EncryptedRecord -> Update TerminalState ()
+recordVote record = modify $ over recordedVotes (record :)
+
+getTerminalConfig :: Query TerminalState Terminal
+getTerminalConfig = view terminal <$> ask
+
+$(makeAcidic ''TerminalState ['getTerminalConfig, 'insertCode, 'lookupBallotStyle, 'recordVote])
+

@@ -1,31 +1,36 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Application.StarTerminal.LinkHelper where
 
-import           Data.Text (Text)
-import qualified Data.Text as T
+import           Control.Lens
+
+import           Data.Monoid
+
+import           Data.Text                    (Text)
+import qualified Data.Text                    as T
 
 import           Application.Star.Ballot
 import           Application.Star.BallotStyle
 
 stepUrl :: BallotCode -> RaceId -> Text
-stepUrl code rId = T.concat ["/ballots/", T.pack (show code), "/step/", rId]
+stepUrl code rId' = T.concat ["/ballots/", T.pack (show code), "/step/", rId']
 
 nextStepUrl :: BallotCode -> BallotStyle -> Race -> Text
-nextStepUrl code style race = case nextRace style race of
-  Just r  -> stepUrl code (_rId r)
-  Nothing -> summaryUrl code
+nextStepUrl code style race =
+  case nextRace style race of
+    Just r  -> stepUrl code (view rId r)
+    Nothing -> summaryUrl code
 
 firstStepUrl :: BallotCode -> BallotStyle -> Text
-firstStepUrl code style = stepUrl code (_rId (head (bRaces style)))
+firstStepUrl code style = stepUrl code $ view (bRaces . _head . rId) style
 
 lastStepUrl :: BallotCode -> BallotStyle -> Text
-lastStepUrl code style = stepUrl code (_rId (last (bRaces style)))
+lastStepUrl code style = stepUrl code $ view (bRaces . _last . rId) style
 
 progressUrl :: BallotCode -> Maybe Race -> Text
-progressUrl code _ = T.concat ["/ballots/", T.pack (show code), "/progress"]
+progressUrl code _ = mconcat ["/ballots/", T.pack (show code), "/progress"]
 
 summaryUrl :: BallotCode -> Text
-summaryUrl code = T.concat ["/ballots/", T.pack (show code), "/summary"]
+summaryUrl code = mconcat ["/ballots/", T.pack (show code), "/summary"]
 
 exitInstructionsUrl :: BallotCode -> Text
-exitInstructionsUrl code = T.concat ["/ballots/", T.pack (show code), "/complete"]
+exitInstructionsUrl code = mconcat ["/ballots/", T.pack (show code), "/complete"]

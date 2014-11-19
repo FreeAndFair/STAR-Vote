@@ -1,5 +1,5 @@
-{-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE ConstraintKinds   #-}
+{-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 {-|
@@ -53,43 +53,47 @@ and to keep the printed receipt.
  -}
 module Application.StarTerminal.Controller where
 
-import           Control.Applicative ((<$>), (<*>))
-import           Control.Monad (when)
-import           Control.Monad.Except (MonadError)
-import           Control.Monad.IO.Class (liftIO)
-import           Control.Monad.State (MonadState, get, state)
-import qualified Data.Aeson as JSON
-import           Data.ByteString (ByteString)
-import           Data.List (foldl')
-import           Data.Maybe (catMaybes, fromJust, isNothing)
-import           Data.Text (Text, pack)
-import qualified Data.Text as T
-import           Data.Text.Encoding (decodeUtf8With, encodeUtf8)
-import           Data.Text.Encoding.Error (ignore)
-import qualified Data.UUID as UUID
-import           Network.HTTP.Client ( Request(..)
-                                     , RequestBody(..)
-                                     , httpNoBody
-                                     , parseUrl
-                                     , withManager )
-import           Network.HTTP.Client.TLS (tlsManagerSettings)
-import           Snap.Core hiding (method)
-import           System.Random (randomIO)
-import           Text.Blaze.Html5 (Html)
+import           Control.Applicative                   (liftA2, liftA3, (<$>), (<*>))
+import           Control.Lens
+import           Control.Monad                         (join, when)
+import           Control.Monad.Except                  (MonadError)
+import           Control.Monad.IO.Class                (liftIO)
+import           Control.Monad.State                   (MonadState, get, modify)
+import           Data.Acid
+import qualified Data.Aeson                            as JSON
+import           Data.ByteString                       (ByteString)
+import           Data.List                             (foldl')
+import           Data.Maybe                            (catMaybes, fromJust,
+                                                        isNothing)
+import           Data.Text                             (Text, pack)
+import qualified Data.Text                             as T
+import           Data.Text.Encoding                    (decodeUtf8With,
+                                                        encodeUtf8)
+import           Data.Text.Encoding.Error              (ignore)
+import qualified Data.UUID                             as UUID
+import           Network.HTTP.Client                   (Request (..),
+                                                        RequestBody (..),
+                                                        httpNoBody, parseUrl,
+                                                        withManager)
+import           Network.HTTP.Client.TLS               (tlsManagerSettings)
+import           Snap.Core                             hiding (method)
+import           System.Random                         (randomIO)
+import           Text.Blaze.Html5                      (Html)
 
 import           Application.Star.Ballot
-import qualified Application.Star.Ballot as Ballot
+import qualified Application.Star.Ballot               as Ballot
 import           Application.Star.BallotStyle
-import qualified Application.Star.BallotStyle as BS
+import qualified Application.Star.BallotStyle          as BS
 import           Application.Star.HashChain
-import           Application.Star.Util (render)
+import           Application.Star.Util                 (doQuery, doUpdate,
+                                                        render)
 import           Application.StarTerminal.LinkHelper
 import           Application.StarTerminal.Localization
-import           Application.StarTerminal.View
 import           Application.StarTerminal.State
+import           Application.StarTerminal.View
 
 
-type StarTerm m = (MonadError Text m, MonadState TerminalState m, MonadSnap m)
+type StarTerm m = (MonadError Text m, MonadState (AcidState TerminalState) m, MonadSnap m)
 
 -- | Accepts ballot codes and records mappings from codes to ballot styles.
 -- This function updates the @_ballotCodes@ field of @TerminalState@.
@@ -104,7 +108,7 @@ recordBallotStyleCode = do
   when (isNothing code) $ do
     modifyResponse $ setResponseStatus 400 "Bad Request"
     getResponse >>= finishWith
-  state $ ((,) ()) . insertCode (fromJust code) (fromJust style)
+  doUpdate $ InsertCode (fromJust code) (fromJust style)
 
 -- | This renders the first page that the voter should see:
 -- A prompt asking for a ballot code.
@@ -115,10 +119,13 @@ askForBallotCode :: StarTerm m => m ()
 askForBallotCode = do
   mCode  <- paramR "code"
   tState <- get
-  let mStyle = mCode >>= flip lookupBallotStyle tState
-  case (,) <$> mCode <*> mStyle of
-    Just (code, style) -> redirect (e (firstStepUrl code style))
-    Nothing            -> render (pg (codeEntryView strings))
+  case mCode of
+    Just c -> do mStyle <- doQuery (LookupBallotStyle c)
+                 case liftA2 (,) mCode mStyle of
+                   Just (code, style) -> redirect (e (firstStepUrl code style))
+                   Nothing            -> noCode
+    Nothing -> noCode
+  where noCode = render (pg (codeEntryView strings))
 
 showBallotStep :: StarTerm m => m ()
 showBallotStep = do
@@ -152,17 +159,16 @@ finalize = do
   (code, _, ballot) <- ballotParams
   ballotId        <- BallotId        . pack . UUID.toString <$> liftIO randomIO
   ballotCastingId <- BallotCastingId . pack . UUID.toString <$> liftIO randomIO
-  tState          <- get
-  let term   = _terminal tState
-  let record = encryptRecord (_pubkey term)
-                             (_tId term)
+  term            <- doQuery GetTerminalConfig
+  let record = encryptRecord (view pubkey term)
+                             (view tId term)
                              ballotId
                              ballotCastingId
-                             (_zp0 term)
-                             (_zi0 term)
+                             (view zp0 term)
+                             (view zi0 term)
                              ballot
-  state $ \s -> ((), s { _recordedVotes = record : _recordedVotes s })
-  liftIO $ transmit (_postUrl term) record
+  doUpdate $ RecordVote record
+  liftIO $ transmit (view postUrl term) record
   redirect (e (exitInstructionsUrl code))
 
 exitInstructions :: StarTerm m => m ()
@@ -182,28 +188,22 @@ ballotStepParams :: StarTerm m => m (BallotCode, BallotStyle, Race)
 ballotStepParams = do
   code   <- paramR "code"
   raceId <- param "stepId"
-  tState <- get
-  maybe pass return (params code raceId tState)
-  where
-    params mCode mRId s = do
-      code   <- mCode
-      rId    <- mRId
-      style  <- lookupBallotStyle code s
-      race   <- bRace rId style
-      return (code, style, race)
+  case liftA2 (,) code raceId of
+    Just (code', raceId') ->
+      do style <- doQuery $ LookupBallotStyle code'
+         maybe pass return $ do ss <- style
+                                r <- bRace raceId' ss
+                                return (code', ss, r)
+    Nothing -> pass
 
 ballotParams :: StarTerm m => m (BallotCode, BallotStyle, Ballot)
 ballotParams = do
   code    <- paramR "code"
   mBallot <- maybe pass getBallot code
-  tState  <- get
-  maybe pass return (params code mBallot tState)
+  mmStyle  <- traverse (doQuery . LookupBallotStyle) code
+  maybe pass return (params code (join mmStyle) mBallot)
   where
-    params mCode mBallot s = do
-      code   <- mCode
-      style  <- lookupBallotStyle code s
-      ballot <- mBallot
-      return (code, style, ballot)
+    params = liftA3 (\x y z -> (x,y,z))
 
 getSelection :: StarTerm m => BallotStyle -> Race -> m (Maybe Selection)
 getSelection style race = do
@@ -227,10 +227,10 @@ setSelection style race s = modifyResponse $ addResponseCookie (c s)
 
 getBallot :: StarTerm m => BallotCode -> m (Maybe Ballot)
 getBallot code = do
-  tState <- get
-  case lookupBallotStyle code tState of
+  sty <- doQuery (LookupBallotStyle code)
+  case sty of
     Just style -> do
-      selections <- mapM (getSel style) (bRaces style)
+      selections <- mapM (getSel style) (view bRaces style)
       let selections' = catMaybes selections
       let wKeys = map (\(r, s) -> (key style r, s)) selections'
       return $ Just $ foldl' (\ballot (k, s) ->
