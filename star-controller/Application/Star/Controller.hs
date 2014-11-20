@@ -92,9 +92,6 @@ $(deriveSafeCopy 0 'base ''StdGen)
 
 data ControllerState = ControllerState
   { _seed :: StdGen
-  -- TODO: following discussions with Jesse, we think it may make more sense
-  -- to ask terminals to check in when they start up and build the terminal
-  -- list that way than to get the list of terminals from the environment
   , _broadcastURLs :: [String]
   , _ballotStyles :: Set BallotCode
   -- ballotBox invariant: the bcid in the EncryptedRecord matches the key it's filed under in the Map
