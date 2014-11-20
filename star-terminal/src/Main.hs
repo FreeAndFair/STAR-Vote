@@ -1,5 +1,5 @@
-{-# LANGUAGE ConstraintKinds #-}
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE ConstraintKinds   #-}
+{-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 {-|
@@ -12,25 +12,38 @@ module Main
   ) where
 
 import           Control.Applicative
-import           Data.Acid (openLocalStateFrom)
-import           Data.ByteString.Lazy (ByteString)
-import qualified Data.ByteString.Lazy as BS
-import qualified Data.ByteString.Base16.Lazy as B16
-import           Data.Default (def)
-import           Data.Int (Int64)
-import           Data.Text.Lazy (pack)
-import           Data.Text.Lazy.Encoding (encodeUtf8)
+import           Data.Acid                           (openLocalStateFrom, query)
+import qualified Data.ByteString.Base16.Lazy         as B16
+import           Data.ByteString.Lazy                (ByteString)
+import qualified Data.ByteString.Lazy                as BS
+import           Data.Default                        (def)
+import           Data.Int                            (Int64)
+import           Data.Monoid
+import           Data.Text.Lazy                      (pack, unpack)
+import           Data.Text.Lazy.Encoding             (encodeUtf8, decodeUtf8)
+import           Network.HTTP.Client                 (Request,
+                                                      RequestBody (..),
+                                                      httpNoBody, parseUrl,
+                                                      urlEncodedBody,
+                                                      withManager)
+import qualified Network.HTTP.Client                 as HTTP
+import           Network.HTTP.Client.TLS             (tlsManagerSettings)
 import           Snap.Core
+import           Snap.Http.Server.Config             (Config, commandLineConfig,
+                                                      getHostname, getPort)
 import           Snap.Util.FileServe
-import           System.Environment (getEnv)
+import           System.Environment                  (getEnv)
 
 import           Application.Star.HashChain
-import           Application.Star.SerializableBS (SerializableBS(SB), fromSB)
-import           Application.Star.Util (statefulErrorServe)
+import           Application.Star.SerializableBS     (SerializableBS (SB),
+                                                      fromSB)
+import           Application.Star.Util               (statefulErrorServe)
 import           Application.StarTerminal.Controller
-import           Application.StarTerminal.State (Terminal(..), TerminalState(..))
+import           Application.StarTerminal.State      (GetRegisterURL (..),
+                                                      Terminal (..),
+                                                      TerminalState (..))
 
-import           Paths_star_terminal (getDataFileName)
+import           Paths_star_terminal                 (getDataFileName)
 
 -- | Main function for the @star-terminal@ executable.
 -- Collects configuration paramaters from environment variables.
@@ -47,19 +60,45 @@ main = do
   tIdStr <- getEnv "STAR_TERMINAL_ID"
   let tId = TerminalId . SB . encodeUtf8 . pack  $  tIdStr
 
-  pubkey <- decode'                             <$> getEnv "STAR_PUBLIC_KEY"
-  zp     <- PublicHash   . decode 32            <$> getEnv "STAR_INIT_PUBLIC_HASH"
-  zi     <- InternalHash . decode 32            <$> getEnv "STAR_INIT_INTERNAL_HASH"
-  z0     <- fromSB       . decode 32            <$> getEnv "STAR_PUBLIC_SALT"
-  url    <-                                         getEnv "STAR_POST_VOTE_URL"
-  let term = Terminal tId pubkey zp zi z0 url
+  pubkey  <- decode'                             <$> getEnv "STAR_PUBLIC_KEY"
+  zp      <- PublicHash   . decode 32            <$> getEnv "STAR_INIT_PUBLIC_HASH"
+  zi      <- InternalHash . decode 32            <$> getEnv "STAR_INIT_INTERNAL_HASH"
+  z0      <- fromSB       . decode 32            <$> getEnv "STAR_PUBLIC_SALT"
+  voteURL <-                                         getEnv "STAR_POST_VOTE_URL"
+  regURL  <-                                         getEnv "STAR_REGISTER_URL"
+
+  let term = Terminal tId pubkey zp zi z0 voteURL regURL
       defaultState = TerminalState def def term
 
   stateFile <- getDataFileName ("terminalState" ++ tIdStr)
   putStrLn $ "The state file is " ++ stateFile ++ ". Delete it to reconfigure the terminal."
-  state <- openLocalStateFrom stateFile defaultState 
+  state <- openLocalStateFrom stateFile defaultState
+
+  -- Register own address with the controller.  Read from state
+  -- because saved state is more important than environment vars.
+  snapConfig <- commandLineConfig mempty :: IO (Config Snap ()) -- dummy type because it doesn't matter here
+  regURL' <- query state GetRegisterURL
+  register regURL' snapConfig
 
   statefulErrorServe site state
+
+  where register :: String -> Config m a -> IO ()
+        register controllerURL cfg = maybe (error "Can't get host info for registration")
+                                           doPost
+                                           myURL
+          where doPost u = do
+                  req <- parseUrl controllerURL
+                  let req' = urlEncodedBody [("url", u)] $ req { HTTP.method = "POST" }
+                  _ <- withManager tlsManagerSettings (httpNoBody req')
+                  return ()
+
+                myURL = do host <- getHostname cfg
+                           port <- getPort cfg
+                           return . mconcat . BS.toChunks $ 
+                             "http://" <> BS.fromChunks [host] <>
+                             ":" <> decode' (show port) <>
+                             "/ballots/"
+
 
 -- | Defines URLs and request methods associated with each server handler.
 site :: StarTerm m => m ()

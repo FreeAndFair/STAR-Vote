@@ -22,9 +22,10 @@ Description:
   but it will work fine on mouse-operated computers too.
   .
   The server is started by running the @star-terminal@ executable.
-  It requires certain environment variables to provide configuration parameters.
-  Examples of those parameters are provided in the @start.sh@ script.
-  See `Application.StarTerminal.State` for parameter documentation.
+  It requires certain environment variables to provide configuration
+  parameters on the first execution. Examples of those parameters are
+  provided in the @start.sh@ script.  See `Application.StarTerminal.State`
+  for parameter documentation.
   .
   Quickstart:
   .

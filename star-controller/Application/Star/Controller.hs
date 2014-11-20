@@ -64,6 +64,11 @@ import Paths_star_controller
 -- GET ballotBox
 -- 	input:  none
 -- 	output: all filled out ballots as reported by voting terminals
+-- POST registerTerminal
+--      input: POST body parameter named "url" containing UTF8-encoded URL to add
+--             to the broadcast list
+--      output: none
+
 
 -- An example of using the controller and terminal together on one machine
 -- might look like this (assuming the appropriate executables are in your
@@ -177,6 +182,9 @@ setUnknownBallotTo status bcid =
 readEntireBallotBox :: Query ControllerState (Map BallotCastingId (BallotStatus, EncryptedRecord))
 readEntireBallotBox = view ballotBox <$> ask
 
+addURL :: String -> Update ControllerState ()
+addURL url = modify $ over broadcastURLs (url:)
+
 $(makeAcidic ''ControllerState [ 'generateCode
                                , 'minimalCode
                                , 'reseed
@@ -184,6 +192,7 @@ $(makeAcidic ''ControllerState [ 'generateCode
                                , 'fillOut
                                , 'setUnknownBallotTo
                                , 'readEntireBallotBox
+                               , 'addURL
                                ])
 
 ---------------------
@@ -194,9 +203,8 @@ $(makeAcidic ''ControllerState [ 'generateCode
 main :: IO ()
 main = do
   seed <- getStdGen
-  urls <- maybe ["http://terminal/ballots"] (splitOn ";") <$> lookupEnv "STAR_POST_BALLOT_CODE_URLS"
   filename <- liftIO $ getDataFileName "controllerState"
-  st <- liftIO (openLocalStateFrom filename (ControllerState seed urls def def))
+  st <- liftIO (openLocalStateFrom filename (ControllerState seed [] def def))
   update st (Reseed seed)
   statefulErrorServe controller $ st
 
@@ -242,6 +250,11 @@ controller = route $
        do v <- doQuery ReadEntireBallotBox
           writeLBS . encode $ v
     )
+  , ("registerTerminal",
+     method POST $
+       do url <- readBodyParam "url"
+          doUpdate (AddURL url)
+    )
   -- TODO: provisional casting
   ]
 
@@ -249,16 +262,16 @@ controller = route $
 
 broadcast :: (MonadState (AcidState ControllerState) m, MonadError Text m, MonadSnap m)
           => BallotCode -> BallotStyleId -> m ()
-broadcast code styleID = do
-  bases <- doQuery GetBroadcastURLs
-  urlRequests <- mapM (errorT . parseUrl . urlFor) bases
-  -- for now, no error-handling of any kind
-  mapM_ (liftIO . forkIO . void . post) urlRequests
+broadcast code styleID =
+  do bases <- doQuery GetBroadcastURLs
+     urlRequests <- mapM (errorT . parseUrl . urlFor) bases
+     -- for now, no error-handling of any kind
+     mapM_ (liftIO . forkIO . void . post) urlRequests
   where
-  urlFor base = base <> "/" <> T.unpack styleID <> "/codes/" <> show code
-  errorT (Left  e) = throwError . T.pack . show $ e
-  errorT (Right v) = return v
-  post r = withManager tlsManagerSettings (httpNoBody r { HTTP.method = "POST" })
+    urlFor baseURL = baseURL <> "/" <> T.unpack styleID <> "/codes/" <> show code
+    errorT (Left  e) = throwError . T.pack . show $ e
+    errorT (Right v) = return v
+    post r = withManager tlsManagerSettings (httpNoBody r { HTTP.method = "POST" })
 
 
 

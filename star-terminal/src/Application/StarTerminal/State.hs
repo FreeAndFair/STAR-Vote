@@ -29,11 +29,11 @@ must each be 256 bits.
  -}
 module Application.StarTerminal.State (
   -- * The initial terminal configuration
-  Terminal(Terminal), tId, pubkey, zp0, zi0, z0, postUrl,
+  Terminal(Terminal), tId, pubkey, zp0, zi0, z0, postUrl, registerURL,
   -- * The running state of the terminal
   TerminalState(TerminalState), recordedVotes, ballotCodes, terminal,
   -- * AcidState actions for working with saved TerminalStates
-  GetTerminalConfig(..), InsertCode(..), LookupBallotStyle(..), RecordVote(..)
+  GetRegisterURL(..), GetTerminalConfig(..), InsertCode(..), LookupBallotStyle(..), RecordVote(..)
   ) where
 
 import           Control.Applicative          ((<$>))
@@ -70,12 +70,13 @@ data TerminalState = TerminalState
 -- \ Records configuration paramaters that should not change while the terminal
 -- is in operation.
 data Terminal = Terminal
-  { _tId     :: TerminalId    -- ^ unique identifier for the terminal
-  , _pubkey  :: PublicKey     -- ^ issued by the election authority, used to encrypt votes
-  , _zp0     :: PublicHash    -- ^ initial hash for the publicly viewable hash chain
-  , _zi0     :: InternalHash  -- ^ initial hash for the non-public hash chain
-  , _z0      :: ByteString    -- ^ public, random salt
-  , _postUrl :: String        -- ^ The terminal posts each encrypted vote to this URL
+  { _tId         :: TerminalId    -- ^ unique identifier for the terminal
+  , _pubkey      :: PublicKey     -- ^ issued by the election authority, used to encrypt votes
+  , _zp0         :: PublicHash    -- ^ initial hash for the publicly viewable hash chain
+  , _zi0         :: InternalHash  -- ^ initial hash for the non-public hash chain
+  , _z0          :: ByteString    -- ^ public, random salt
+  , _postUrl     :: String        -- ^ The terminal posts each encrypted vote to this URL
+  , _registerURL :: String        -- ^ At startup, notify this URL of the terminal's existence
   } deriving Typeable
 
 $(makeLenses ''TerminalState)
@@ -95,5 +96,8 @@ recordVote record = modify $ over recordedVotes (record :)
 getTerminalConfig :: Query TerminalState Terminal
 getTerminalConfig = view terminal <$> ask
 
-$(makeAcidic ''TerminalState ['getTerminalConfig, 'insertCode, 'lookupBallotStyle, 'recordVote])
+getRegisterURL :: Query TerminalState String
+getRegisterURL = view registerURL <$> getTerminalConfig
+
+$(makeAcidic ''TerminalState ['getRegisterURL, 'getTerminalConfig, 'insertCode, 'lookupBallotStyle, 'recordVote])
 
