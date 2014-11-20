@@ -60,12 +60,12 @@ main = do
   tIdStr <- getEnv "STAR_TERMINAL_ID"
   let tId = TerminalId . SB . encodeUtf8 . pack  $  tIdStr
 
-  pubkey  <- decode'                             <$> getEnv "STAR_PUBLIC_KEY"
-  zp      <- PublicHash   . decode 32            <$> getEnv "STAR_INIT_PUBLIC_HASH"
-  zi      <- InternalHash . decode 32            <$> getEnv "STAR_INIT_INTERNAL_HASH"
-  z0      <- fromSB       . decode 32            <$> getEnv "STAR_PUBLIC_SALT"
-  voteURL <-                                         getEnv "STAR_POST_VOTE_URL"
-  regURL  <-                                         getEnv "STAR_REGISTER_URL"
+  pubkey  <- decode'                  <$> getEnv "STAR_PUBLIC_KEY"
+  zp      <- PublicHash   . decode 32 <$> getEnv "STAR_INIT_PUBLIC_HASH"
+  zi      <- InternalHash . decode 32 <$> getEnv "STAR_INIT_INTERNAL_HASH"
+  z0      <- fromSB       . decode 32 <$> getEnv "STAR_PUBLIC_SALT"
+  voteURL <-                              getEnv "STAR_POST_VOTE_URL"
+  regURL  <-                              getEnv "STAR_REGISTER_URL"
 
   let term = Terminal tId pubkey zp zi z0 voteURL regURL
       defaultState = TerminalState def def term
