@@ -104,13 +104,13 @@ main = do
 site :: StarTerm m => m ()
 site =
     -- ifTop (formHandler) <|>
-    route [ ("ballots",                    method GET  askForBallotCode)
-          , ("ballots/:code/step/:stepId", method GET  showBallotStep)
-          , ("ballots/:code/step/:stepId", method POST recordBallotSelection)
-          , ("ballots/:code/summary",      method GET  showSummary)
-          , ("ballots/:code/summary",      method POST finalize)
-          , ("ballots/:code/complete",     method GET  exitInstructions)
-          , ("ballots/:ballotId/codes/:code",  method POST recordBallotStyleCode)
+    route [ ("ballots",                       method GET  askForBallotCode)
+          , ("ballots/:code/step/:stepId",    method GET  showBallotStep)
+          , ("ballots/:code/step/:stepId",    method POST recordBallotSelection)
+          , ("ballots/:code/summary",         method GET  showSummary)
+          , ("ballots/:code/summary",         method POST finalize)
+          , ("ballots/:code/complete",        method GET  exitInstructions)
+          , ("ballots/:ballotId/codes/:code", method POST recordBallotStyleCode)
           ] <|>
     dir "static" (serveDirectory "static")
 
