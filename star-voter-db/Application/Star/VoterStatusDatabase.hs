@@ -154,7 +154,7 @@ openDB = do name <- liftIO (getDataFileName "voterdb")
             liftIO $ flip openLocalStateFrom (StatusDB M.empty []) name
 
 
-doCheckpoint :: (MonadIO m, MonadState (AcidState a) m) => m ()
+doCheckpoint :: (MonadIO m, MonadAcidState s m) => m ()
 doCheckpoint = get >>= liftIO . createCheckpoint
 
 fakeData :: IO ()
@@ -185,14 +185,14 @@ serve st page = quickHttpServe $ do
                     Left err -> error (show err)
                     Right _ok -> return ()
 
-index :: (MonadSnap m, MonadError Text m, MonadState (AcidState StatusDB) m) => m ()
+index :: (MonadSnap m, MonadError Text m, MonadAcidState StatusDB m) => m ()
 index = do render . pageHtml .
              set pageTitle "Voter Check-In" .
                flip (set pageContents) blankPage . H.ul $ do
                  H.li $ H.a ! A.href "/search" $ "Find voters"
                  H.li $ H.a ! A.href "/add-provisional" $ "Register provisional voter"
 
-search :: (MonadSnap m, MonadError Text m, MonadState (AcidState StatusDB) m) => m ()
+search :: (MonadSnap m, MonadError Text m, MonadAcidState StatusDB m) => m ()
 search = do
   q <- getParam "q"
   res <- traverse (doQuery . SearchVoter . decodeUtf8) q
@@ -227,7 +227,7 @@ search = do
         H.input ! A.type_ "submit"
       resultTable
 
-stickerPage :: (MonadSnap m, MonadError Text m, MonadState (AcidState StatusDB) m) => m ()
+stickerPage :: (MonadSnap m, MonadError Text m, MonadAcidState StatusDB m) => m ()
 stickerPage = do
   voter <- readURIParam "voter"
   v <- doQuery $ LookupVoter voter
@@ -238,7 +238,7 @@ stickerPage = do
     Just (_, v, (prec,bsid):_) -> do modifyResponse $ setContentType "application/pdf"
                                      stickerPDF <- liftIO $ sticker False v prec bsid
                                      writeLBS stickerPDF
-provisionalStickerPage :: (MonadSnap m, MonadError Text m, MonadState (AcidState StatusDB) m) => m ()
+provisionalStickerPage :: (MonadSnap m, MonadError Text m, MonadAcidState StatusDB m) => m ()
 provisionalStickerPage = do
   voter <- Voter <$> (decodeUtf8 <$> requireParam "name") <*>
                      (decodeUtf8 <$> requireParam "address")
@@ -248,7 +248,7 @@ provisionalStickerPage = do
   stickerPDF <- liftIO $ sticker True voter precinct ballotStyle
   writeLBS stickerPDF
 
-addProvisionalForm :: (MonadSnap m, MonadError Text m, MonadState (AcidState StatusDB) m) => m ()
+addProvisionalForm :: (MonadSnap m, MonadError Text m, MonadAcidState StatusDB m) => m ()
 addProvisionalForm = do -- Form for adding provisional voters
   (view, res) <- runForm "foo" (liftA3 (\a b c -> (a,b,c)) voterForm idForm ballotStyleForm)
   case res of
@@ -281,7 +281,7 @@ alreadyVoted name address vid =
     H.toHtml (" " :: String)
     H.a ! A.href "/search" $ "Return"
 
-markVotedConfirm :: (MonadSnap m, MonadError Text m, MonadState (AcidState StatusDB) m) => m ()
+markVotedConfirm :: (MonadSnap m, MonadError Text m, MonadAcidState StatusDB m) => m ()
 markVotedConfirm = do
   vid  <- readURIParam "voter"
   voter <- doQuery (LookupVoter vid)
@@ -297,7 +297,7 @@ markVotedConfirm = do
           H.input ! A.type_ "submit" ! A.value "Confirm check-in"
     Just (Voted, Voter name address, _) -> alreadyVoted name address vid
 
-markVotedPage :: (MonadSnap m, MonadError Text m, MonadState (AcidState StatusDB) m) => m ()
+markVotedPage :: (MonadSnap m, MonadError Text m, MonadAcidState StatusDB m) => m ()
 markVotedPage = do
   r <- getRequest
   liftIO $ putStrLn (show (rqPostParams r))
@@ -315,7 +315,7 @@ markVotedPage = do
                     "."
            H.p $ H.a ! A.href "/search" $ "Another"
 
-voterStatusDB :: (MonadSnap m, MonadError Text m, MonadState (AcidState StatusDB) m) => m ()
+voterStatusDB :: (MonadSnap m, MonadError Text m, MonadAcidState StatusDB m) => m ()
 voterStatusDB =
   ifTop index <|>
   path "search" (method GET $ search) <|>

@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, FlexibleInstances, GeneralizedNewtypeDeriving, MultiParamTypeClasses, OverloadedStrings, UndecidableInstances #-}
+{-# LANGUAGE ConstraintKinds, FlexibleContexts, FlexibleInstances, GeneralizedNewtypeDeriving, MultiParamTypeClasses, OverloadedStrings, UndecidableInstances #-}
 module Application.Star.Util where
 
 import Control.Applicative
@@ -23,15 +23,17 @@ import Text.Blaze.Html.Renderer.Utf8 (renderHtml)
 import qualified Data.Map  as M
 import qualified Data.Text as T
 
+type MonadAcidState a m = MonadState (AcidState a) m
+
 -- | Run an ACID-state query in a smart enough monad
-doQuery :: (MonadIO m, MonadState (AcidState (EventState event)) m, QueryEvent event)
+doQuery :: (MonadIO m, MonadAcidState (EventState event) m, QueryEvent event)
           => event
           -> m (EventResult event)
 doQuery e = do st <- get
                liftIO (query st e)
 
 -- | Run an ACID-state update in a smart enough monad
-doUpdate :: (MonadIO m, MonadState (AcidState (EventState event)) m, UpdateEvent event)
+doUpdate :: (MonadIO m, MonadAcidState (EventState event) m, UpdateEvent event)
            => event
            -> m (EventResult event)
 doUpdate e = do st <- get

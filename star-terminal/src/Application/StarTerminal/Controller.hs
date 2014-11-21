@@ -53,13 +53,11 @@ and to keep the printed receipt.
  -}
 module Application.StarTerminal.Controller where
 
-import           Control.Applicative                   (liftA2, liftA3, (<$>), (<*>))
+import           Control.Applicative                   (liftA2, liftA3, (<$>))
 import           Control.Lens
 import           Control.Monad                         (join, when)
 import           Control.Monad.Except                  (MonadError)
 import           Control.Monad.IO.Class                (liftIO)
-import           Control.Monad.State                   (MonadState, get, modify)
-import           Data.Acid
 import qualified Data.Aeson                            as JSON
 import           Data.ByteString                       (ByteString)
 import           Data.List                             (foldl')
@@ -85,15 +83,17 @@ import qualified Application.Star.Ballot               as Ballot
 import           Application.Star.BallotStyle
 import qualified Application.Star.BallotStyle          as BS
 import           Application.Star.HashChain
-import           Application.Star.Util                 (doQuery, doUpdate,
-                                                        render)
+import           Application.Star.Util                 (MonadAcidState
+                                                       ,doQuery
+                                                       ,doUpdate
+                                                       ,render)
 import           Application.StarTerminal.LinkHelper
 import           Application.StarTerminal.Localization
 import           Application.StarTerminal.State
 import           Application.StarTerminal.View
 
 
-type StarTerm m = (MonadError Text m, MonadState (AcidState TerminalState) m, MonadSnap m)
+type StarTerm m = (MonadError Text m, MonadAcidState TerminalState m, MonadSnap m)
 
 -- | Accepts ballot codes and records mappings from codes to ballot styles.
 -- This function updates the @_ballotCodes@ field of @TerminalState@.
@@ -118,7 +118,6 @@ recordBallotStyleCode = do
 askForBallotCode :: StarTerm m => m ()
 askForBallotCode = do
   mCode  <- paramR "code"
-  tState <- get
   case mCode of
     Just c -> do mStyle <- doQuery (LookupBallotStyle c)
                  case liftA2 (,) mCode mStyle of

@@ -1,4 +1,5 @@
-{-# LANGUAGE DeriveDataTypeable,
+{-# LANGUAGE ConstraintKinds,
+             DeriveDataTypeable,
              FlexibleContexts,
              FlexibleInstances,
              OverloadedStrings,
@@ -113,7 +114,7 @@ instance ToJSON v => ToJSON (Map BallotCastingId v) where
 -- up here due to TH ordering restriction
 -- | Run a lens over a state
 state' :: MonadState s m => Lens s s t t -> (t -> (a, t)) -> m a
-state' lens f = state (\s -> second (flip (set lens) s) (f (view lens s)))
+state' l f = state (\s -> second (flip (set l) s) (f (view l s)))
 
 -- | generateCode generates a fresh code by first trying a few random codes; if
 -- that doesn't pan out, it searches all possible codes for any it could use
@@ -205,7 +206,7 @@ main = do
   update st (Reseed seed)
   statefulErrorServe controller st
 
-controller :: (MonadError Text m, MonadState (AcidState ControllerState) m, MonadSnap m) => m ()
+controller :: (MonadError Text m, MonadAcidState ControllerState m, MonadSnap m) => m ()
 controller = route $
   [ ("generateCode",
      method POST
@@ -257,7 +258,7 @@ controller = route $
 
 
 
-broadcast :: (MonadState (AcidState ControllerState) m, MonadError Text m, MonadSnap m)
+broadcast :: (MonadAcidState ControllerState m, MonadError Text m, MonadSnap m)
           => BallotCode -> BallotStyleId -> m ()
 broadcast code styleID =
   do bases <- doQuery GetBroadcastURLs
