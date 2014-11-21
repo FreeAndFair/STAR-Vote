@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings, TemplateHaskell #-}
 module Application.Star.Templates where
 
-import Control.Lens (view)
+import Control.Lens (set, view)
 import Control.Lens.TH
 
 import Data.Monoid
@@ -23,6 +23,21 @@ $(makeLenses ''Page)
 
 blankPage :: Page
 blankPage = Page mempty mempty mempty mempty
+
+
+-- | A page for STAR-vote interfaces with some common defaults
+starPage :: Page
+starPage = Page mempty
+                mempty
+                -- TODO: serve this stuff locally!
+                [ "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.1/js/bootstrap.min.js" ]
+                [ "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.1/css/bootstrap.min.css"
+                , "https://maxcdn.bootstrapcdn.com/bootstrap/3.3.1/css/bootstrap-theme.min.css"
+                ]
+
+starPageWithContents :: T.Text -> Html -> Page
+starPageWithContents title body =
+  set pageTitle title . set pageContents body $ starPage
 
 pageHtml :: Page -> Html
 pageHtml p =

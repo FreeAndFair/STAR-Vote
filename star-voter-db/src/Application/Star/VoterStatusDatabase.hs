@@ -50,6 +50,8 @@ import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 
 import Paths_star_voter_db (getDataFileName)
 
+import Debug.Trace
+
 -- Assumptions:
 --
 --   (1) Each voter gets to vote exactly once
@@ -174,26 +176,18 @@ fakeData = do getDataFileName "voterdb" >>= putStrLn . ("Opening " ++)
 main :: IO ()
 main = do getDataFileName "voterdb" >>= putStrLn . ("Opening " ++)
           db <- openDB
-          serve db voterStatusDB
+          statefulErrorServe voterStatusDB db
           closeAcidState db
 
-
-serve :: AcidState StatusDB -> StateT (AcidState StatusDB) (ExceptT Text Snap) a -> IO ()
-serve st page = quickHttpServe $ do
-                  res <- runExceptT (evalStateT page st)
-                  case res of
-                    Left err -> error (show err)
-                    Right _ok -> return ()
-
 index :: (MonadSnap m, MonadError Text m, MonadAcidState StatusDB m) => m ()
-index = do render . pageHtml .
-             set pageTitle "Voter Check-In" .
-               flip (set pageContents) blankPage . H.ul $ do
-                 H.li $ H.a ! A.href "/search" $ "Find voters"
-                 H.li $ H.a ! A.href "/add-provisional" $ "Register provisional voter"
+index = render . pageHtml . starPageWithContents "Voter Check-In" $
+          H.ul $ do
+            H.li $ H.a ! A.href "/search" $ "Find voters"
+            H.li $ H.a ! A.href "/add-provisional" $ "Register provisional voter"
 
 search :: (MonadSnap m, MonadError Text m, MonadAcidState StatusDB m) => m ()
 search = do
+  trace "here" $ return ()
   q <- getParam "q"
   res <- traverse (doQuery . SearchVoter . decodeUtf8) q
   let resultTable = 
@@ -220,8 +214,7 @@ search = do
                       , H.a ! A.href (H.toValue $ "/mark-voted?voter=" ++ show vid) $ "check in"
                       ]
   render . pageHtml .
-    set pageTitle "Search" .
-    flip (set pageContents) blankPage $ do
+    starPageWithContents "Search" $ do
       H.form ! A.method "GET" $ do
         H.input ! A.name "q" ! A.type_ "text" ! A.value (H.toValue $ maybe "" decodeUtf8 q)
         H.input ! A.type_ "submit"
@@ -253,7 +246,7 @@ addProvisionalForm = do -- Form for adding provisional voters
   (view, res) <- runForm "foo" (liftA3 (\a b c -> (a,b,c)) voterForm idForm ballotStyleForm)
   case res of
     Nothing ->  -- input not recieved
-      render . pageHtml . set pageTitle "Provisional registration" . flip (set pageContents) blankPage $ do
+      render . pageHtml . starPageWithContents "Provisional registration" $ do
         form view "add-provisional" $ do
           voterView view
           idView "Precinct" view
@@ -272,7 +265,7 @@ addProvisionalForm = do -- Form for adding provisional voters
 
 
 alreadyVoted name address vid = 
-  render . pageHtml . set pageTitle (name <> " has already voted!") . flip (set pageContents) blankPage $ do
+  render . pageHtml . starPageWithContents (name <> " has already voted!") $ do
     "Name: " <> H.toHtml name
     H.br
     "Address:" <> H.pre (H.toHtml address)
@@ -286,10 +279,10 @@ markVotedConfirm = do
   vid  <- readURIParam "voter"
   voter <- doQuery (LookupVoter vid)
   case voter of
-    Nothing -> render . pageHtml . set pageTitle "Invalid voter ID" . flip (set pageContents) blankPage $
+    Nothing -> render . pageHtml . starPageWithContents "Invalid voter ID" $
                  "The voter ID " <> (H.toHtml $ show vid) <> "is invalid."
     Just (Hasn't, Voter name address, _) ->
-      render . pageHtml . set pageTitle "Voter Check-In: " . flip (set pageContents) blankPage $
+      render . pageHtml . starPageWithContents "Voter Check-In: " $
         H.form ! A.method "POST" $ do
           H.input ! A.type_ "hidden" ! A.name "voter" ! A.value (H.toValue (show vid))
           "Name: " <> H.toHtml name
@@ -304,12 +297,12 @@ markVotedPage = do
   vid  <- readBodyParam "voter"
   voter <- doQuery (LookupVoter vid)
   case voter of
-    Nothing -> render . pageHtml . set pageTitle "Invalid voter ID" . flip (set pageContents) blankPage $
+    Nothing -> render . pageHtml . starPageWithContents "Invalid voter ID" $
                  "The voter ID " <> (H.toHtml $ show vid) <> "is invalid."
     Just (Voted, Voter name address, _) -> alreadyVoted name address vid
     Just (Hasn't, Voter name address, _) ->
       do doUpdate (MarkVoted vid)
-         render . pageHtml . set pageTitle "Check-in successful!" . flip (set pageContents) blankPage $ do
+         render . pageHtml . starPageWithContents "Check-in successful!" $ do
            H.p $ do H.toHtml name <> " has checked in successfully. Remember to print the "
                     H.a ! A.href (H.toValue $ "/sticker?voter=" ++ show vid) $ "sticker"
                     "."
@@ -318,8 +311,6 @@ markVotedPage = do
 voterStatusDB :: (MonadSnap m, MonadError Text m, MonadAcidState StatusDB m) => m ()
 voterStatusDB =
   ifTop index <|>
-  path "search" (method GET $ search) <|>
-  path "sticker" stickerPage <|>
   route
     [ ("initialize", method POST $ do
       ids <- readBodyParam "voterids"
@@ -328,6 +319,7 @@ voterStatusDB =
       doUpdate $ InitializeDB db
       writeShow ("new DB: " ++ show db)
       )
+    , ("search", method GET search)
     , ("sticker", method GET stickerPage)
     , ("add-provisional", addProvisionalForm)
     , ("provisional-sticker", method GET provisionalStickerPage)

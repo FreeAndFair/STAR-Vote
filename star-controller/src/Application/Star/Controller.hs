@@ -217,7 +217,7 @@ controller = route $
             Right c -> do broadcast c styleID
                           writeShow c) <|>
      method GET
-       (render . pageHtml . set pageTitle "Vote!" . flip (set pageContents) blankPage $
+       (render . pageHtml . starPageWithContents "Vote!" $
           H.form ! A.method "POST" $ do
             H.input ! A.id "sticker" ! A.name "sticker" ! A.type_ "text"
             H.input ! A.type_ "submit")
