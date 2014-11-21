@@ -35,7 +35,6 @@ import qualified Text.Blaze.Html5.Attributes as A
 
 import Text.Blaze.Html5 ((!))
 
-import qualified Control.Concurrent.STM as STM
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Map  as M
 import qualified Data.Set  as S
@@ -197,15 +196,16 @@ $(makeAcidic ''ControllerState [ 'generateCode
 ---------------------
 
 
+
 main :: IO ()
 main = do
   seed <- getStdGen
   filename <- liftIO $ getDataFileName "controllerState"
-  st <- liftIO (openLocalStateFrom filename (ControllerState seed [] def def))
+  st <- liftIO $ openLocalStateFrom filename (ControllerState seed [] def def)
   update st (Reseed seed)
-  statefulErrorServe controller $ st
+  statefulErrorServe controller st
 
-controller :: (MonadError Text m, MonadTransaction (AcidState ControllerState) m, MonadSnap m) => m ()
+controller :: (MonadError Text m, MonadState (AcidState ControllerState) m, MonadSnap m) => m ()
 controller = route $
   [ ("generateCode",
      method POST

@@ -10,9 +10,7 @@ module Application.Star.CommonImports
   , ByteString
   , Map
   , Set
-  , STM
   , Text
-  , TVar
   ) where
 
 import Control.Applicative
@@ -24,7 +22,6 @@ import Data.Default
 import Data.Monoid
 import Snap
 
-import Control.Concurrent.STM (STM, TVar)
 import Data.ByteString (ByteString)
 import Data.Map (Map)
 import Data.Set (Set)
