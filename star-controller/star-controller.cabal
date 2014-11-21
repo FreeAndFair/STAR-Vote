@@ -17,6 +17,7 @@ cabal-version:       >=1.10
 
 executable star-controller
   main-is:             Main.hs
+  hs-source-dirs:      src
   -- other-modules:       
   other-extensions:    FlexibleContexts, OverloadedStrings
   build-depends:       acid-state                >=0.12.3 && < 0.13,
