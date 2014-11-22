@@ -60,12 +60,11 @@ unsafeModInverse m = fromJust . (modInverse m)
 -- (!) Interpretation of the specific ring is determined by the caller.
 data Polynomial = Polynomial (Array Integer Integer)
 
--- Evaluate a polynomial, applying `f` to each evaluated term before summing.
-evalPolyWith f (Polynomial poly) x = sum [ f t
-                                         | let (lb, ub) = bounds poly,
-                                           i <- [lb..ub],
-                                           let t = (poly ! i) * (x ^ i)
-                                         ]
+-- Evaluate a polynomial, applying `f` to each evaluated term before summing
+-- and to the sum itself.
+evalPolyWith f (Polynomial poly) x = f $ sum [ f (coeff * x^exp)
+                                             | (exp, coeff) <- assocs poly
+                                             ]
 
 -- Usual univariate polynomial evaluation.
 evalPoly = evalPolyWith id
