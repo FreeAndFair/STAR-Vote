@@ -32,7 +32,8 @@ test-suite test-all
   hs-source-dirs:      src
                        test
   main-is:             All.hs
-  build-depends:       array >= 0.5,
+  build-depends:       arithmoi >= 0.2,
+                       array >= 0.5,
                        base >=4.7 && <4.8,
                        bytestring >=0.10,
                        crypto-api >= 0.13,

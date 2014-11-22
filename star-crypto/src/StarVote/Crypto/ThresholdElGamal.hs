@@ -9,7 +9,10 @@ import Crypto.Random
 import Control.Monad.CryptoRandom
 
 import Data.Array as A
+import Data.Maybe (fromJust)
 import qualified Data.ByteString as B
+
+import Math.NumberTheory.Moduli
 
 import StarVote.Crypto.Math
 import StarVote.Crypto.Types
@@ -37,7 +40,7 @@ buildKeyPair rng params = do
       lb = 1
       ub = p - 2
   (privateExponent, rng') <- crandomR (lb, ub) rng
-  let publicKey  = TEGPublicKey  params (expMod p g privateExponent)
+  let publicKey  = TEGPublicKey  params (powerMod g privateExponent p)
       privateKey = TEGPrivateKey params privateExponent
   return ((publicKey, privateKey), rng')
 
@@ -59,8 +62,8 @@ encryptAsym rng (TEGPublicKey params halfSecret) msg = do
   (privateExponent, rng') <- crandomR (lb, ub) rng
   (privateExponent, rng'') <- crandomR (lb, ub) rng'
 
-  let gamma = expMod p g privateExponent
-      delta = msg * (expMod p halfSecret privateExponent)
+  let gamma = powerMod g privateExponent p
+      delta = msg * (powerMod halfSecret privateExponent p)
   return (TEGCipherText gamma delta, rng'')
 
 -- ElGamal public-key encryption (Decryption).
@@ -75,7 +78,7 @@ decryptAsym pk c = mod (gamma' * delta) p
         p = tegOrder params
 
         g = tegGenerator params
-        gamma' = unsafeModInverse p gamma
+        gamma' = fromJust $ invertMod gamma p
 
 -- Shamir's (t, n) threshold scheme (Setup)
 -- [HAC 526] Mechanism 12.71.1
