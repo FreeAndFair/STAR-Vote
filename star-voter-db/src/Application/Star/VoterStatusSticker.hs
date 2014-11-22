@@ -36,7 +36,7 @@ stickerTextWidth = textWidth starFont . toPDFString . T.unpack
 -- | Use the most recent precinct data
 sticker :: Bool -> Voter -> ID Precinct -> BallotStyleId -> IO LBS.ByteString
 sticker provisional v prec ballotstyle =
-  do let rect = PDFRect 0 0 200 (ceiling $ height starBarcodeConfig)
+  do let rect = PDFRect 0 0 300 (ceiling $ height starBarcodeConfig)
      pdfByteString standardDocInfo { compressed = False } rect $ do
        p <- addPage Nothing
        drawWithPage p $ do
