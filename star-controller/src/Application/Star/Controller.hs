@@ -22,6 +22,7 @@ import Control.Concurrent
 import Control.Lens
 import Data.Acid
 import Data.Aeson
+import qualified Data.ByteString.Char8 as Char8
 import Data.Char
 import Data.List.Split
 import Data.Maybe
@@ -217,9 +218,10 @@ controller = route $
             Right c -> do broadcast c styleID
                           writeShow c) <|>
      method GET
-       (render . pageHtml . starPageWithContents "Vote!" $
+       (render . pageHtml . starPageWithContents "Vote!" $ do
+          H.p "Scan your barcode here:"
           H.form ! A.method "POST" $ do
-            H.input ! A.id "sticker" ! A.name "sticker" ! A.type_ "text"
+            H.input ! A.id "sticker" ! A.name "style" ! A.type_ "text"
             H.input ! A.type_ "submit")
     )
   , ("fillOut",
