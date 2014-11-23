@@ -12,10 +12,12 @@ module Main
   ) where
 
 import           Control.Applicative
+import           Control.Monad                       (void)
 import           Data.Acid                           (openLocalStateFrom, query)
 import qualified Data.ByteString.Base16.Lazy         as B16
 import           Data.ByteString.Lazy                (ByteString)
 import qualified Data.ByteString.Lazy                as BS
+import qualified Data.ByteString.Lazy.Char8 as Char8
 import           Data.Default                        (def)
 import           Data.Int                            (Int64)
 import           Data.Monoid
@@ -89,16 +91,15 @@ main = do
           where doPost u = do
                   req <- parseUrl controllerURL
                   let req' = urlEncodedBody [("url", u)] $ req { HTTP.method = "POST" }
-                  _ <- withManager tlsManagerSettings (httpNoBody req')
+                  void $ withManager tlsManagerSettings (httpNoBody req')
                   return ()
 
                 myURL = do host <- getHostname cfg
                            port <- getPort cfg
                            return . mconcat . BS.toChunks $ 
                              "http://" <> BS.fromChunks [host] <>
-                             ":" <> decode' (show port) <>
+                             ":" <> Char8.pack (show port) <>
                              "/ballots/"
-
 
 -- | Defines URLs and request methods associated with each server handler.
 site :: StarTerm m => m ()
