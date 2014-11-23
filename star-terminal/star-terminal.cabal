@@ -45,6 +45,7 @@ Executable star-terminal
     aeson,
     base                      >= 4      && < 5,
     base16-bytestring,
+    base64-bytestring         >= 1.0.0.1 && < 1.1,
     binary,
     blaze-html,
     blaze-markup,

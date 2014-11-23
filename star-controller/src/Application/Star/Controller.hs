@@ -250,7 +250,8 @@ controller = route $
     )
   , ("registerTerminal",
      method POST $
-       do url <- readBodyParam "url"
+       do url <- maybe (error "Required parameter 'url' not present")
+                       Char8.unpack <$> getPostParam "url"
           doUpdate (AddURL url)
     )
   -- TODO: provisional casting
