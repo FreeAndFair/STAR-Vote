@@ -34,9 +34,7 @@ buildKeyPair
   -> Either GenError ((TEGPublicKey, TEGPrivateKey), rng)
 buildKeyPair rng params = do
   let p = tegOrder params
-      k = tegBits params
       g = tegGenerator params
-      bl = div k 8
       lb = 1
       ub = p - 2
   (privateExponent, rng') <- crandomR (lb, ub) rng
@@ -54,9 +52,7 @@ encryptAsym
   -> Either GenError (TEGCipherText, rng)
 encryptAsym rng (TEGPublicKey params halfSecret) msg = do
   let p = tegOrder params
-      k = tegBits params
       g = tegGenerator params
-      bl = div k 8
       lb = 1
       ub = p - 2
   (privateExponent, rng') <- crandomR (lb, ub) rng

@@ -5,7 +5,6 @@ import Data.Array (Array)
 data TEGParams
   = TEGParams {
       tegOrder     :: Integer,
-      tegBits      :: Integer,
       tegGenerator :: Integer,
       tegTrustees  :: Integer,
       tegThreshold :: Integer
