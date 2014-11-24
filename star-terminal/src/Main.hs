@@ -105,7 +105,7 @@ main = do
 -- | Defines URLs and request methods associated with each server handler.
 site :: StarTerm m => m ()
 site =
-    -- ifTop (formHandler) <|>
+    ifTop (redirect "/ballots") <|>
     route [ ("ballots",                       method GET  askForBallotCode)
           , ("ballots/:code/step/:stepId",    method GET  showBallotStep)
           , ("ballots/:code/step/:stepId",    method POST recordBallotSelection)
