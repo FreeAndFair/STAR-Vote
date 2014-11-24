@@ -67,7 +67,7 @@ data TerminalState = TerminalState
 
 
 
--- \ Records configuration paramaters that should not change while the terminal
+-- \ Records configuration parameters that should not change while the terminal
 -- is in operation.
 data Terminal = Terminal
   { _tId         :: TerminalId    -- ^ unique identifier for the terminal
