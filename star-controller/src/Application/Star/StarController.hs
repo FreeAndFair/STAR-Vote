@@ -7,7 +7,7 @@
              TemplateHaskell,
              TypeFamilies
  #-}
-module Application.Star.Controller where
+module Application.Star.StarController where
 
 import Application.Star.Ballot
 import Application.Star.BallotStyle
@@ -22,7 +22,9 @@ import Control.Concurrent
 import Control.Lens
 import Data.Acid
 import Data.Aeson
+import qualified Data.ByteString.Char8 as Char8
 import Data.Char
+import Data.List (isSuffixOf)
 import Data.List.Split
 import Data.Maybe
 import Data.SafeCopy
@@ -217,9 +219,10 @@ controller = route $
             Right c -> do broadcast c styleID
                           writeShow c) <|>
      method GET
-       (render . pageHtml . starPageWithContents "Vote!" $
+       (render . pageHtml . starPageWithContents "Vote!" $ do
+          H.p "Scan your barcode here:"
           H.form ! A.method "POST" $ do
-            H.input ! A.id "sticker" ! A.name "sticker" ! A.type_ "text"
+            H.input ! A.id "sticker" ! A.name "style" ! A.type_ "text"
             H.input ! A.type_ "submit")
     )
   , ("fillOut",
@@ -250,7 +253,8 @@ controller = route $
     )
   , ("registerTerminal",
      method POST $
-       do url <- readBodyParam "url"
+       do url <- maybe (error "Required parameter 'url' not present")
+                       Char8.unpack <$> getPostParam "url"
           doUpdate (AddURL url)
     )
   -- TODO: provisional casting
@@ -266,7 +270,8 @@ broadcast code styleID =
      -- for now, no error-handling of any kind
      mapM_ (liftIO . forkIO . void . post) urlRequests
   where
-    urlFor baseURL = baseURL <> "/" <> T.unpack styleID <> "/codes/" <> show code
+    urlFor baseURL = baseURL <> (if "/" `isSuffixOf` baseURL then "" else "/") <>
+                     T.unpack styleID <> "/codes/" <> show code
     errorT (Left  e) = throwError . T.pack . show $ e
     errorT (Right v) = return v
     post r = withManager tlsManagerSettings (httpNoBody r { HTTP.method = "POST" })

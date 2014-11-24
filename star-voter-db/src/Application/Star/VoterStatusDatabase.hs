@@ -194,14 +194,13 @@ search = do
         case res of
           Nothing -> mempty
           Just [] -> "Nothing found"
-          Just xs -> H.table $ do
+          Just xs -> H.table ! A.class_ "table table-striped" $ do
                        header
                        mconcat $ map row xs
-            where header = H.tr $ mconcat [ H.td "Name"
-                                          , H.td "Status"
-                                          , H.td "Address"
-                                          , H.td mempty
-                                          , H.td mempty
+            where header = H.tr $ mconcat [ H.th "Name"
+                                          , H.th "Status"
+                                          , H.th "Address"
+                                          , H.th mempty
                                           ]
                   row (vid, a, v, status) =
                     H.tr . mconcat . map H.td $
@@ -210,8 +209,12 @@ search = do
                           Hasn't -> "Hasn't voted"
                           Voted -> "Has voted"
                       , H.pre . H.toHtml $ view voterAddress v
-                      , H.a ! A.href (H.toValue $ "/sticker?voter=" ++ show vid) $ "sticker"
-                      , H.a ! A.href (H.toValue $ "/mark-voted?voter=" ++ show vid) $ "check in"
+                      , H.ul . mconcat . map H.li $
+                          [ H.a ! A.href (H.toValue $ "/sticker?voter=" ++ show vid) $
+                              "sticker"
+                          , H.a ! A.href (H.toValue $ "/mark-voted?voter=" ++ show vid) $
+                              "check in"
+                          ]
                       ]
   render . pageHtml .
     starPageWithContents "Search" $ do
@@ -220,6 +223,7 @@ search = do
         H.input ! A.type_ "submit"
       resultTable
 
+-- | Print the barcode sticker for a voter, given an ID from the URL
 stickerPage :: (MonadSnap m, MonadError Text m, MonadAcidState StatusDB m) => m ()
 stickerPage = do
   voter <- readURIParam "voter"
@@ -231,6 +235,8 @@ stickerPage = do
     Just (_, v, (prec,bsid):_) -> do modifyResponse $ setContentType "application/pdf"
                                      stickerPDF <- liftIO $ sticker False v prec bsid
                                      writeLBS stickerPDF
+                                     
+-- | Print the barcode sticker for a provisional voter, given their information
 provisionalStickerPage :: (MonadSnap m, MonadError Text m, MonadAcidState StatusDB m) => m ()
 provisionalStickerPage = do
   voter <- Voter <$> (decodeUtf8 <$> requireParam "name") <*>
@@ -241,13 +247,16 @@ provisionalStickerPage = do
   stickerPDF <- liftIO $ sticker True voter precinct ballotStyle
   writeLBS stickerPDF
 
+
+-- | A handler that displays and processes a form for provisional voter registration
 addProvisionalForm :: (MonadSnap m, MonadError Text m, MonadAcidState StatusDB m) => m ()
 addProvisionalForm = do -- Form for adding provisional voters
-  (view, res) <- runForm "foo" (liftA3 (\a b c -> (a,b,c)) voterForm idForm ballotStyleForm)
+  (view, res) <- runForm "provisional" $
+                   liftA3 (\a b c -> (a,b,c)) voterForm idForm ballotStyleForm
   case res of
     Nothing ->  -- input not recieved
       render . pageHtml . starPageWithContents "Provisional registration" $ do
-        form view "add-provisional" $ do
+        form view "add-provisional" ! A.class_ "form-horizontal row" $ do
           voterView view
           idView "Precinct" view
           ballotStyleView view
@@ -260,9 +269,21 @@ addProvisionalForm = do -- Form for adding provisional voters
                                                    , ("precinct", [encodeUtf8 . T.pack $ show precinct])
                                                    , ("ballotstyle", [encodeUtf8 ballotStyle])
                                                    ])
-      render . pageHtml . flip (set pageContents) blankPage $
-        H.a ! A.href (H.toValue (decodeUtf8 stickerUrl)) $ "Print sticker"
-
+      render . pageHtml . starPageWithContents ("Provisional registration: " <> name) $ do
+        H.p $
+          H.toHtml name <>
+          " has been registered as a provisional voter with the " <>
+          "following information:"
+        H.dl ! A.class_ "dl-horizontal" $ 
+          mconcat . map (\(h, c) -> H.dt h <> H.dd c) $
+            [ ("Name", H.toHtml name)
+            , ("Address", H.pre (H.toHtml address))
+            , ("Precinct", H.toHtml $ show precinct)
+            , ("Ballot style", H.toHtml ballotStyle)
+            ]
+        H.ul $ do 
+          H.li $ H.a ! A.href (H.toValue (decodeUtf8 stickerUrl)) $ "Print sticker"
+          H.li $ H.a ! A.href "/" $ "Return"
 
 alreadyVoted name address vid = 
   render . pageHtml . starPageWithContents (name <> " has already voted!") $ do
@@ -270,9 +291,10 @@ alreadyVoted name address vid =
     H.br
     "Address:" <> H.pre (H.toHtml address)
     H.br
-    H.a ! A.href (H.toValue $ "/sticker?voter=" ++ show vid) $ "Re-print sticker"
-    H.toHtml (" " :: String)
-    H.a ! A.href "/search" $ "Return"
+    H.ul . mconcat . map H.li $
+      [ H.a ! A.href (H.toValue $ "/sticker?voter=" ++ show vid) $ "Re-print sticker"
+      , H.a ! A.href "/search" $ "Return"
+      ]
 
 markVotedConfirm :: (MonadSnap m, MonadError Text m, MonadAcidState StatusDB m) => m ()
 markVotedConfirm = do

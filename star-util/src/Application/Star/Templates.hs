@@ -53,6 +53,13 @@ pageHtml p =
                        $ mempty
               | js <- view pageJavascriptIncludes p
               ]
+      meta ! charset "utf-8"
+      meta ! httpEquiv "X-UA-Compatible" ! content "IE=edge"
+      meta ! name "viewport" ! content "width=device-width, initial-scale=1"
     body $ do
-      h1 (toHtml (view pageTitle p))
-      view pageContents p
+      H.div ! class_ "row" $
+        h1 ! class_ "col-md-8 col-md-offset-2" $
+          toHtml (view pageTitle p)
+      H.div ! class_ "row" $
+        H.div ! class_ "col-md-8 col-md-offset-2" $ do
+          view pageContents p
