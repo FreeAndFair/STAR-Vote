@@ -1,1 +1,1 @@
-module Main (main) where import Application.Star.Controller
+module Main (main) where import Application.Star.StarController

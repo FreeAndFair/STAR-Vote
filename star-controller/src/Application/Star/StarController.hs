@@ -7,7 +7,7 @@
              TemplateHaskell,
              TypeFamilies
  #-}
-module Application.Star.Controller where
+module Application.Star.StarController where
 
 import Application.Star.Ballot
 import Application.Star.BallotStyle
