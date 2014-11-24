@@ -99,7 +99,8 @@ main = do
                            return . mconcat . BS.toChunks $ 
                              "http://" <> BS.fromChunks [host] <>
                              ":" <> Char8.pack (show port) <>
-                             "/ballots/"
+                             "/ballots"
+
 
 -- | Defines URLs and request methods associated with each server handler.
 site :: StarTerm m => m ()

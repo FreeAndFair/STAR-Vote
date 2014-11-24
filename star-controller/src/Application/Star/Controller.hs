@@ -24,6 +24,7 @@ import Data.Acid
 import Data.Aeson
 import qualified Data.ByteString.Char8 as Char8
 import Data.Char
+import Data.List (isSuffixOf)
 import Data.List.Split
 import Data.Maybe
 import Data.SafeCopy
@@ -269,7 +270,8 @@ broadcast code styleID =
      -- for now, no error-handling of any kind
      mapM_ (liftIO . forkIO . void . post) urlRequests
   where
-    urlFor baseURL = baseURL <> "/" <> T.unpack styleID <> "/codes/" <> show code
+    urlFor baseURL = baseURL <> (if "/" `isSuffixOf` baseURL then "" else "/") <>
+                     T.unpack styleID <> "/codes/" <> show code
     errorT (Left  e) = throwError . T.pack . show $ e
     errorT (Right v) = return v
     post r = withManager tlsManagerSettings (httpNoBody r { HTTP.method = "POST" })
