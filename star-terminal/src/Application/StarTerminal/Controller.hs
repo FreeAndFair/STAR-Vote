@@ -157,6 +157,7 @@ finalize :: StarTerm m => m ()
 finalize = do
   (code, _, ballot) <- ballotParams
   ballotId        <- BallotId        . pack . UUID.toString <$> liftIO randomIO
+  -- TODO: ensure uniqueness of bid and bcid
   ballotCastingId <- BallotCastingId . pack . UUID.toString <$> liftIO randomIO
   term            <- doQuery GetTerminalConfig
   let record = encryptRecord (view pubkey term)
