@@ -7,10 +7,13 @@ import           Control.Lens                    (view)
 import           Control.Monad                   (void)
 import           Control.Monad.IO.Class          (MonadIO, liftIO)
 
-import           Data.ByteString.Lazy            (ByteString)
+import           Data.ByteString.Lazy            (ByteString, toStrict)
 import qualified Data.Map                        as M
 import           Data.Monoid
 import qualified Data.Text                       as T
+import           Data.Text.Encoding                    (decodeUtf8With,
+                                                        encodeUtf8)
+import           Data.Text.Encoding.Error              (ignore)
 import           Data.Time                       (UTCTime, formatTime)
 
 import           Graphics.PDF
@@ -46,7 +49,7 @@ paperBallot ballot style voted term t = liftIO $ do
     receiptPage <- addPage Nothing
     drawWithPage receiptPage $ do
       displayFormattedText (Rectangle (10 :+ 10) (690 :+ 690))  NormalParagraph receiptStyle $ do
-        paragraph . txt $ "Terminal ID: " ++ (show . fromSB) termId
+        paragraph . txt $ "Terminal ID: " ++ (T.unpack . decodeUtf8With ignore . toStrict . fromSB) termId
         paragraph . txt $ formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%SZ" t
         paragraph . txt $ "Confirmation code: " ++ (show . fromSB) hash
   where (TerminalId termId) = view tId term -- the unique ID of the voting terminal
