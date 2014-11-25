@@ -42,7 +42,9 @@ import           Application.Star.SerializableBS
 type Selection = Text
 
 newtype BallotId = BallotId Text
-  deriving (FromJSON, ToJSON)
+  deriving (FromJSON, ToJSON, Eq, Ord, Typeable)
+$(deriveSafeCopy 0 'base ''BallotId)
+
 newtype BallotCastingId = BallotCastingId Text
   deriving (Eq, Ord, Read, Show, FromJSON, ToJSON, Typeable)
 $(deriveSafeCopy 0 'base ''BallotCastingId)

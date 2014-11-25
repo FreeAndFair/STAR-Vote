@@ -17,14 +17,14 @@ import           Data.Acid                           (openLocalStateFrom, query)
 import qualified Data.ByteString.Base16.Lazy         as B16
 import           Data.ByteString.Lazy                (ByteString)
 import qualified Data.ByteString.Lazy                as BS
-import qualified Data.ByteString.Lazy.Char8 as Char8
+import qualified Data.ByteString.Lazy.Char8          as Char8
 import           Data.Default                        (def)
 import           Data.Int                            (Int64)
+import qualified Data.Map                            as M
 import           Data.Monoid
 import           Data.Text.Lazy                      (pack, unpack)
-import           Data.Text.Lazy.Encoding             (encodeUtf8, decodeUtf8)
-import           Network.HTTP.Client                 (Request,
-                                                      RequestBody (..),
+import           Data.Text.Lazy.Encoding             (decodeUtf8, encodeUtf8)
+import           Network.HTTP.Client                 (Request, RequestBody (..),
                                                       httpNoBody, parseUrl,
                                                       urlEncodedBody,
                                                       withManager)
@@ -42,7 +42,7 @@ import           Application.Star.SerializableBS     (SerializableBS (SB),
 import           Application.Star.Util               (statefulErrorServe)
 import           Application.StarTerminal.Controller
 import           Application.StarTerminal.State      (GetRegisterURL (..),
-                                                      Terminal (..),
+                                                      StarTerm, Terminal (..),
                                                       TerminalState (..))
 
 import           Paths_star_terminal                 (getDataFileName)
@@ -70,7 +70,7 @@ main = do
   regURL  <-                              getEnv "STAR_REGISTER_URL"
 
   let term = Terminal tId pubkey zp zi z0 voteURL regURL
-      defaultState = TerminalState def def term
+      defaultState = TerminalState def def term M.empty
 
   stateFile <- getDataFileName ("terminalState" ++ tIdStr)
   putStrLn $ "The state file is " ++ stateFile ++ ". Delete it to reconfigure the terminal."
@@ -96,7 +96,7 @@ main = do
 
                 myURL = do host <- getHostname cfg
                            port <- getPort cfg
-                           return . mconcat . BS.toChunks $ 
+                           return . mconcat . BS.toChunks $
                              "http://" <> BS.fromChunks [host] <>
                              ":" <> Char8.pack (show port) <>
                              "/ballots"
@@ -111,10 +111,12 @@ site =
           , ("ballots/:code/step/:stepId",    method POST recordBallotSelection)
           , ("ballots/:code/summary",         method GET  showSummary)
           , ("ballots/:code/summary",         method POST finalize)
-          , ("ballots/:code/complete",        method GET  exitInstructions)
+          , ("receipt/:bid",                  method GET  printReceipt)
+          , ("receipt/:bid/print",            method GET  printReceiptPDF)
           , ("ballots/:ballotId/codes/:code", method POST recordBallotStyleCode)
           ] <|>
-    dir "static" (serveDirectory "static")
+    dir "static" (serveDirectory "static") <|>
+    do404
 
 decode :: Int64 -> String -> SerializableBS
 decode n s = if BS.length bs == n then SB bs else

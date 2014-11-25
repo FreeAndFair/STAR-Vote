@@ -1,3 +1,4 @@
+{-# LANGUAGE ConstraintKinds    #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE OverloadedStrings  #-}
 {-# LANGUAGE TemplateHaskell    #-}
@@ -28,28 +29,33 @@ The mappings of environment variables are:
 must each be 256 bits.
  -}
 module Application.StarTerminal.State (
+  StarTerm,
   -- * The initial terminal configuration
   Terminal(Terminal), tId, pubkey, zp0, zi0, z0, postUrl, registerURL,
   -- * The running state of the terminal
   TerminalState(TerminalState), recordedVotes, ballotCodes, terminal,
   -- * AcidState actions for working with saved TerminalStates
-  GetRegisterURL(..), GetTerminalConfig(..), InsertCode(..), LookupBallotStyle(..), RecordVote(..)
+  GetReceipt(..), GetRegisterURL(..), GetTerminalConfig(..), InsertCode(..),
+  LookupBallotStyle(..), RecordVote(..), SaveReceipt(..)
   ) where
 
-import           Control.Applicative          ((<$>))
 import           Control.Lens
-import           Control.Monad.Reader         (ask)
-import           Control.Monad.State          (modify)
 
-import           Data.Acid                    (Query, Update, makeAcidic)
-import           Data.ByteString.Lazy         (ByteString)
-import           Data.Map                     (Map)
-import           Data.SafeCopy                (base, deriveSafeCopy)
+import           Data.Acid                      (Query, Update, makeAcidic)
+import qualified Data.ByteString.Lazy           as LB
+import qualified Data.Map                       as M
+import           Data.SafeCopy                  (base, deriveSafeCopy)
+import qualified Data.Text                      as T
+import           Data.Time                      (UTCTime)
 import           Data.Typeable
 
 import           Application.Star.Ballot
 import           Application.Star.BallotStyle
+import           Application.Star.CommonImports
 import           Application.Star.HashChain
+import           Application.Star.Util
+
+type StarTerm m = (MonadError T.Text m, MonadAcidState TerminalState m, MonadSnap m)
 
 data TerminalState = TerminalState
   {
@@ -63,6 +69,7 @@ data TerminalState = TerminalState
     -- style.
   , _ballotCodes   :: Map BallotCode BallotStyle
   , _terminal      :: Terminal
+  , _receiptInfo   :: Map BallotId (Ballot, BallotStyle, EncryptedRecord, UTCTime)
   }
 
 
@@ -74,7 +81,7 @@ data Terminal = Terminal
   , _pubkey      :: PublicKey     -- ^ issued by the election authority, used to encrypt votes
   , _zp0         :: PublicHash    -- ^ initial hash for the publicly viewable hash chain
   , _zi0         :: InternalHash  -- ^ initial hash for the non-public hash chain
-  , _z0          :: ByteString    -- ^ public, random salt
+  , _z0          :: LB.ByteString -- ^ public, random salt
   , _postUrl     :: String        -- ^ The terminal posts each encrypted vote to this URL
   , _registerURL :: String        -- ^ At startup, notify this URL of the terminal's existence
   } deriving Typeable
@@ -93,11 +100,25 @@ lookupBallotStyle code = view (ballotCodes . at code) <$> ask
 recordVote :: EncryptedRecord -> Update TerminalState ()
 recordVote record = modify $ over recordedVotes (record :)
 
+saveReceipt :: BallotId -> Ballot -> BallotStyle -> EncryptedRecord -> UTCTime -> Update TerminalState ()
+saveReceipt bid ballot style record t = modify $ over receiptInfo (M.insert bid (ballot, style, record, t))
+
+-- | Retrieve the information necessary to print the human-readable ballot and receipt
+getReceipt :: BallotId -> Query TerminalState (Maybe (Ballot, BallotStyle, EncryptedRecord, UTCTime))
+getReceipt bid = view (receiptInfo . at bid) <$> ask
+
 getTerminalConfig :: Query TerminalState Terminal
 getTerminalConfig = view terminal <$> ask
 
 getRegisterURL :: Query TerminalState String
 getRegisterURL = view registerURL <$> getTerminalConfig
 
-$(makeAcidic ''TerminalState ['getRegisterURL, 'getTerminalConfig, 'insertCode, 'lookupBallotStyle, 'recordVote])
+$(makeAcidic ''TerminalState [ 'getReceipt 
+                             , 'getRegisterURL
+                             , 'getTerminalConfig
+                             , 'insertCode
+                             , 'lookupBallotStyle
+                             , 'recordVote
+                             , 'saveReceipt
+                             ])
 
