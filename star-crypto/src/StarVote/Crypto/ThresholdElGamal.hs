@@ -6,6 +6,7 @@ module StarVote.Crypto.ThresholdElGamal where
 
 import Crypto.Classes
 import Crypto.Random
+import Control.Monad
 import Control.Monad.CryptoRandom
 
 import Data.Array as A
@@ -28,39 +29,35 @@ import StarVote.Crypto.Types
 -- Key generation for ElGamal public-key encryption.
 -- [HAC 294] Algorithm 8.17
 buildKeyPair
-  :: (CryptoRandomGen rng)
-  => rng
-  -> TEGParams
-  -> Either GenError ((TEGPublicKey, TEGPrivateKey), rng)
-buildKeyPair rng params = do
+  :: MonadCRandomR e m
+  => TEGParams
+  -> m (TEGPublicKey, TEGPrivateKey)
+buildKeyPair params = do
   let p = tegOrder params
       g = tegGenerator params
       lb = 1
       ub = p - 2
-  (privateExponent, rng') <- crandomR (lb, ub) rng
+  privateExponent <- getCRandomR (lb, ub)
   let publicKey  = TEGPublicKey  params (powerMod g privateExponent p)
       privateKey = TEGPrivateKey params privateExponent
-  return ((publicKey, privateKey), rng')
+  return (publicKey, privateKey)
 
 -- ElGamal public-key encryption (Encryption).
 -- [HAC 295] Algorithm 8.18.1
 encryptAsym
-  :: (CryptoRandomGen rng)
-  => rng
-  -> TEGPublicKey
+  :: MonadCRandomR e m
+  => TEGPublicKey
   -> Integer
-  -> Either GenError (TEGCipherText, rng)
-encryptAsym rng (TEGPublicKey params halfSecret) msg = do
+  -> m TEGCipherText
+encryptAsym (TEGPublicKey params halfSecret) msg = do
   let p = tegOrder params
       g = tegGenerator params
       lb = 1
       ub = p - 2
-  (privateExponent, rng') <- crandomR (lb, ub) rng
-  (privateExponent, rng'') <- crandomR (lb, ub) rng'
-
+  privateExponent <- getCRandomR (lb, ub)
   let gamma = powerMod g privateExponent p
       delta = msg * (powerMod halfSecret privateExponent p)
-  return (TEGCipherText gamma delta, rng'')
+  return (TEGCipherText gamma delta)
 
 -- ElGamal public-key encryption (Decryption).
 -- [HAC 295] Algorithm 8.18.2
@@ -78,24 +75,21 @@ decryptAsym pk c = mod (gamma' * delta) p
 
 -- Shamir's (t, n) threshold scheme (Setup)
 -- [HAC 526] Mechanism 12.71.1
--- (!) Throws away rng due to use of `crandomRs`
 buildShares
-  :: (CryptoRandomGen rng)
-  => rng        -- You will lose this!
-  -> TEGParams
+  :: MonadCRandomR e m
+  => TEGParams
   -> Integer
-  -> Shares
-buildShares rng params secret =
+  -> m Shares
+buildShares params secret = do
   let
     p = tegOrder params
     n = tegTrustees params
     th = tegThreshold params
     lb = 0
     ub = p - 1
-    coeffs = take (fromIntegral (th - 1)) $ crandomRs (lb, ub) rng
-    poly = Polynomial $ listArray (0, th-1) (secret:coeffs)
-  in
-   Shares $ listArray (1, n) $ map (evalPolyMod p poly) [1..n]
+  coeffs <- replicateM (fromIntegral (th - 1)) $ getCRandomR (lb, ub)
+  let poly = Polynomial $ listArray (0, th-1) (secret:coeffs)
+  return . Shares $ listArray (1, n) $ map (evalPolyMod p poly) [1..n]
 
 -- Shamir's (t, n) threshold scheme (Pooling)
 -- [HAC 526] Mechanism 12.71.2
