@@ -68,6 +68,7 @@ import qualified Data.Text                             as T
 import           Data.Text.Encoding                    (decodeUtf8With,
                                                         encodeUtf8)
 import           Data.Text.Encoding.Error              (ignore)
+import           Data.Time.Clock                       (getCurrentTime)
 import qualified Data.UUID                             as UUID
 import           Network.HTTP.Client                   (Request (..),
                                                         RequestBody (..),
@@ -83,17 +84,15 @@ import qualified Application.Star.Ballot               as Ballot
 import           Application.Star.BallotStyle
 import qualified Application.Star.BallotStyle          as BS
 import           Application.Star.HashChain
-import           Application.Star.Util                 (MonadAcidState
-                                                       ,doQuery
-                                                       ,doUpdate
-                                                       ,render)
+import           Application.Star.Util                 (MonadAcidState, doQuery,
+                                                        doUpdate,
+                                                        getBallotStyles, render)
 import           Application.StarTerminal.LinkHelper
 import           Application.StarTerminal.Localization
+import           Application.StarTerminal.PaperBallot  (paperBallot)
 import           Application.StarTerminal.State
 import           Application.StarTerminal.View
 
-
-type StarTerm m = (MonadError Text m, MonadAcidState TerminalState m, MonadSnap m)
 
 -- | Accepts ballot codes and records mappings from codes to ballot styles.
 -- This function updates the @_ballotCodes@ field of @TerminalState@.
@@ -101,6 +100,7 @@ recordBallotStyleCode :: StarTerm m => m ()
 recordBallotStyleCode = do
   ballotId  <- param "ballotId"
   code      <- paramR "code"
+  ballotStyles <- getBallotStyles
   let style = ballotId >>= flip BS.lookup ballotStyles
   when (isNothing style) $ do
     modifyResponse $ setResponseStatus 404 "Not Found"
@@ -153,9 +153,11 @@ showSummary = do
   (code, style, ballot) <- ballotParams
   render (pg (summaryView strings code style ballot))
 
+-- | Encrypt the vote, send it to the controller, and redirect to a page with instructions
 finalize :: StarTerm m => m ()
 finalize = do
-  (code, _, ballot) <- ballotParams
+  (code, style, ballot) <- ballotParams
+  -- TODO: ensure uniqueness of bid and bcid
   ballotId        <- BallotId        . pack . UUID.toString <$> liftIO randomIO
   ballotCastingId <- BallotCastingId . pack . UUID.toString <$> liftIO randomIO
   term            <- doQuery GetTerminalConfig
@@ -166,13 +168,41 @@ finalize = do
                              (view zp0 term)
                              (view zi0 term)
                              ballot
+  now <- liftIO getCurrentTime
   doUpdate $ RecordVote record
+  doUpdate $ SaveReceipt ballotId ballot style record now
   liftIO $ transmit (view postUrl term) record
-  redirect (e (exitInstructionsUrl code))
+  redirect (e (exitInstructionsUrl ballotId))
 
-exitInstructions :: StarTerm m => m ()
-exitInstructions = render (pg (exitInstructionsView strings))
+-- TODO: the terminal needs to print the human-readable ballot and receipt
+printReceipt :: StarTerm m => m ()
+printReceipt = do url <- fmap (ballotReceiptUrl . BallotId . d) <$> getParam "bid"
+                  case url of
+                    Nothing -> do404
+                    Just u -> render (pg (printReceiptView u strings))
 
+
+printReceiptPDF :: StarTerm m => m ()
+printReceiptPDF = do
+  tm <- doQuery GetTerminalConfig
+  bid' <- fmap (BallotId . decodeUtf8With handler) <$> getParam "bid"
+  case bid' of
+    Nothing -> noBallot
+    Just bid -> do
+      foundInfo <- doQuery $ GetReceipt bid
+      case foundInfo of
+        Nothing -> noBallot
+        Just (ballot, ballotStyle, encrypted, voteTime) -> do
+          ballotContents <- paperBallot ballot ballotStyle encrypted tm voteTime
+          modifyResponse $ setContentType "application/pdf"
+          writeLBS ballotContents
+
+
+  where noBallot = do modifyResponse $ setResponseStatus 404 "Not Found"
+                      getResponse >>= finishWith
+        handler msg input = error $ "Failed to decode UTF8: " ++ show input
+
+-- | Send an encrypted vote to the controller
 transmit :: String -> EncryptedRecord -> IO ()
 transmit url record = do
   initReq <- parseUrl url
@@ -242,6 +272,9 @@ getBallot code = do
       return $ ((,) race) <$> sel
 
 
+do404 :: StarTerm m => m ()
+do404 = render (pg view404)
+
 param :: StarTerm m => Text -> m (Maybe Text)
 param k = do
   p <- getParam (encodeUtf8 k)
@@ -270,58 +303,11 @@ strings = translations
   , ("next_step", "next step")
   , ("previous_step", "previous step")
   , ("print_ballot", "print ballot to proceed")
+  , ("print_ballot_receipt_now", "Print your ballot and receipt now")
   , ("select_candidate", "Please select a candidate")
   , ("show_progress", "show progress")
   , ("star_terminal", "STAR Terminal")
   , ("submit", "Submit")
   , ("successful_vote", "You voted!")
   , ("summary", "Review and finalize your selections")
-  ]
-
--- | An example ballot style.
--- For now this is the only ballot style that is available to terminals.
--- In the future ballot styles will be provided during configuration,
--- rather than hard-coded.
-ballotStyles :: BallotStyles
-ballotStyles =
-  [ BallotStyle
-    { _bId = "oregon-2014"
-    , _bRaces =
-      [ Race
-        { _rDescription = "Oregon Governor"
-        , _rId = "gov"
-        , _rOptions =
-          [ Option "c1" "Aaron Auer"        (Just "Con") (Just "Minister of the Gospel")
-          , Option "c2" "Tovia E Fornah"    (Just "Non") (Just "Service")
-          , Option "c3" "Paul Grad"         (Just "L")   (Just "Investor")
-          , Option "c4" "Chris Henry"       (Just "P")   Nothing
-          , Option "c5" "John Kitzhaber"    (Just "Dem") (Just "Governor of Oregon")
-          , Option "c6" "Jason Levin"       (Just "Grn") (Just "Cannabis Industry Professional")
-          , Option "c7" "Dennis Richardson" (Just "Rep") (Just "Businessman; State Representative")
-          ]
-        }
-      , Race
-        { _rDescription = "US Senator"
-        , _rId = "senate"
-        , _rOptions =
-          [ Option "s1" "James E. Leuenberger" (Just "Con") Nothing
-          , Option "s2" "Christina Jean Lugo"  (Just "Grn") (Just "Artist, Peace Activist")
-          , Option "s3" "Jeff Merkley"         (Just "Dem") (Just "United States Senator")
-          , Option "s4" "Mike Montchalin"      (Just "L")   (Just "Candidate/Retired")
-          , Option "s5" "Monica Wehby"         (Just "Rep") (Just "Pediatric Neurosurgeon")
-          ]
-        }
-      , Race
-        { _rDescription = "US Representative, 3rd District"
-        , _rId = "rep_3"
-        , _rOptions =
-          [ Option "r1" "Earl Blumenauer"  (Just "Dem") (Just "U.S. Congressman")
-          , Option "r2" "James Buchal"     (Just "Rep") (Just "Attorney")
-          , Option "r3" "Jeffrey J Langan" (Just "L")   Nothing
-          , Option "r4" "Michael Meo"      (Just "Grn") (Just "retired schoolteacher")
-          , Option "r5" "David Walker"     (Just "Non") (Just "Family Nurse Practitioner")
-          ]
-        }
-      ]
-    }
   ]

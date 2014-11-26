@@ -32,5 +32,8 @@ progressUrl code _ = mconcat ["/ballots/", T.pack (show code), "/progress"]
 summaryUrl :: BallotCode -> Text
 summaryUrl code = mconcat ["/ballots/", T.pack (show code), "/summary"]
 
-exitInstructionsUrl :: BallotCode -> Text
-exitInstructionsUrl code = mconcat ["/ballots/", T.pack (show code), "/complete"]
+exitInstructionsUrl :: BallotId -> Text
+exitInstructionsUrl (BallotId code) = mconcat ["/receipt/", code, "/"]
+
+ballotReceiptUrl :: BallotId -> Text
+ballotReceiptUrl (BallotId code) = mconcat ["/receipt/", code, "/print"]

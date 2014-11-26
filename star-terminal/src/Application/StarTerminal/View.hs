@@ -77,6 +77,9 @@ ballotOptionView _ s o =
       Just s' -> if s' == _oId o then checked "checked" else mempty
       Nothing -> mempty
 
+view404 :: Html
+view404 = "Not found"
+
 selectionDescription :: Option -> Html
 selectionDescription o = do
   toHtml (_oName o)
@@ -113,12 +116,13 @@ summaryItemView _ code bStyle race ballot =
     rId = _rId race
 
 -- | Message that is shown after a ballot has been finalized.
-exitInstructionsView :: Translations -> Html
-exitInstructionsView ts =
+printReceiptView :: Text -> Translations -> Html
+printReceiptView url ts =
   div ! class_ "container" $ do
     div ! class_ "page-header" $ do
       h1 (t "successful_vote" ts)
     p (t "collect_ballot_and_receipt" ts)
+    a ! href (toValue url) $ (t "print_ballot_receipt_now" ts)
 
 -- | Page layout -
 -- produces markup that appears on every page.
@@ -202,3 +206,4 @@ whitespace = toHtml (" " :: Text)
 
 nbsp :: Html
 nbsp = preEscapedToHtml ("&nbsp;" :: Text)
+

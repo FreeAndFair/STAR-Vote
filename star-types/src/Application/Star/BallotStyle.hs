@@ -92,7 +92,7 @@ key :: BallotStyle -> Race -> BallotKey
 key style race = key' (_bId style) (_rId race)
 
 -- | Variant of `key` that takes a ballot style ID instead of a ballot style
--- value
+-- value`
 key' :: BallotStyleId -> RaceId -> BallotKey
 key' bId rId = T.concat [bId, "---", rId]
 

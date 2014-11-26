@@ -23,6 +23,8 @@ import Text.Blaze.Html.Renderer.Utf8 (renderHtml)
 import qualified Data.Map  as M
 import qualified Data.Text as T
 
+import Application.Star.BallotStyle
+
 type MonadAcidState a m = MonadState (AcidState a) m
 
 -- | Run an ACID-state query in a smart enough monad
@@ -118,3 +120,56 @@ render h = do
                  . setHeader (mk "Cache-Control") "max-age=0"
   writeLBS (renderHtml h)
 
+-- TODO: allow the election to be configured ahead of time!
+-- | Get the ballot styles for the current election
+-- For now, it's a stub. Should be filled out with something that consults the pre-election configuration.
+getBallotStyles :: Monad m => m BallotStyles
+getBallotStyles = return ballotStyles
+
+-- | An example ballot style.
+-- For now this is the only ballot style that is available to terminals.
+-- In the future ballot styles will be provided during configuration,
+-- rather than hard-coded.
+ballotStyles :: BallotStyles
+ballotStyles =
+  [ BallotStyle
+    { _bId = "oregon-2014"
+    , _bRaces =
+      [ Race
+        { _rDescription = "Oregon Governor"
+        , _rId = "gov"
+        , _rOptions =
+          [ Option "c1" "Aaron Auer"        (Just "Con") (Just "Minister of the Gospel")
+          , Option "c2" "Tovia E Fornah"    (Just "Non") (Just "Service")
+          , Option "c3" "Paul Grad"         (Just "L")   (Just "Investor")
+          , Option "c4" "Chris Henry"       (Just "P")   Nothing
+          , Option "c5" "John Kitzhaber"    (Just "Dem") (Just "Governor of Oregon")
+          , Option "c6" "Jason Levin"       (Just "Grn") (Just "Cannabis Industry Professional")
+          , Option "c7" "Dennis Richardson" (Just "Rep") (Just "Businessman; State Representative")
+          ]
+        }
+      , Race
+        { _rDescription = "US Senator"
+        , _rId = "senate"
+        , _rOptions =
+          [ Option "s1" "James E. Leuenberger" (Just "Con") Nothing
+          , Option "s2" "Christina Jean Lugo"  (Just "Grn") (Just "Artist, Peace Activist")
+          , Option "s3" "Jeff Merkley"         (Just "Dem") (Just "United States Senator")
+          , Option "s4" "Mike Montchalin"      (Just "L")   (Just "Candidate/Retired")
+          , Option "s5" "Monica Wehby"         (Just "Rep") (Just "Pediatric Neurosurgeon")
+          ]
+        }
+      , Race
+        { _rDescription = "US Representative, 3rd District"
+        , _rId = "rep_3"
+        , _rOptions =
+          [ Option "r1" "Earl Blumenauer"  (Just "Dem") (Just "U.S. Congressman")
+          , Option "r2" "James Buchal"     (Just "Rep") (Just "Attorney")
+          , Option "r3" "Jeffrey J Langan" (Just "L")   Nothing
+          , Option "r4" "Michael Meo"      (Just "Grn") (Just "retired schoolteacher")
+          , Option "r5" "David Walker"     (Just "Non") (Just "Family Nurse Practitioner")
+          ]
+        }
+      ]
+    }
+  ]
