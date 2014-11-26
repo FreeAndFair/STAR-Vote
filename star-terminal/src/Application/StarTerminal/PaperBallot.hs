@@ -8,6 +8,7 @@ import           Control.Monad                   (void)
 import           Control.Monad.IO.Class          (MonadIO, liftIO)
 
 import           Data.ByteString.Lazy            (ByteString, toStrict)
+import qualified Data.ByteString.Base16.Lazy     as Base16
 import qualified Data.Map                        as M
 import           Data.Monoid
 import qualified Data.Text                       as T
@@ -51,9 +52,10 @@ paperBallot ballot style voted term t = liftIO $ do
       displayFormattedText (Rectangle (10 :+ 10) (690 :+ 690))  NormalParagraph receiptStyle $ do
         paragraph . txt $ "Terminal ID: " ++ (T.unpack . decodeUtf8With ignore . toStrict . fromSB) termId
         paragraph . txt $ formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%SZ" t
-        paragraph . txt $ "Confirmation code: " ++ (show . fromSB) hash
+        paragraph . txt $ "Confirmation code: " ++ hashView
   where (TerminalId termId) = view tId term -- the unique ID of the voting terminal
         (PublicHash hash) = view zp voted
+        hashView = take 20 . T.unpack . decodeUtf8With ignore . toStrict . Base16.encode . fromSB $ hash
 --        bid    = view bId --voted -- the unique ID of the ballot to print
 
 -- | Generate a human-readable summary of a ballot
