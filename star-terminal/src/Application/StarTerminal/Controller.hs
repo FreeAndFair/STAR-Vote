@@ -193,7 +193,7 @@ printReceiptPDF = do
       case foundInfo of
         Nothing -> noBallot
         Just (ballot, ballotStyle, encrypted, voteTime) -> do
-          ballotContents <- paperBallot ballot ballotStyle encrypted tm voteTime
+          ballotContents <- paperBallot ballot bid ballotStyle encrypted tm voteTime
           modifyResponse $ setContentType "application/pdf"
           writeLBS ballotContents
 

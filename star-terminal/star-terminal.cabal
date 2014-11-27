@@ -43,6 +43,7 @@ Executable star-terminal
   Build-depends:
     acid-state                >= 0.12.3 && < 0.13,
     aeson,
+    barcodes-code128          >= 0.1    && < 0.2,    
     base                      >= 4      && < 5,
     base16-bytestring,
     base64-bytestring         >= 1.0.0.1 && < 1.1,

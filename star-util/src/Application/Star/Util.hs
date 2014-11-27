@@ -6,6 +6,8 @@ import Control.Monad.CatchIO
 import Control.Monad.Except
 import Control.Monad.Reader
 import Control.Monad.State
+import Control.Monad.Trans.Maybe
+import Control.Lens
 import Data.Acid (AcidState, EventResult, EventState, QueryEvent, UpdateEvent, query, update)
 import Data.Aeson
 import Data.ByteString (ByteString)
@@ -123,8 +125,19 @@ render h = do
 -- TODO: allow the election to be configured ahead of time!
 -- | Get the ballot styles for the current election
 -- For now, it's a stub. Should be filled out with something that consults the pre-election configuration.
-getBallotStyles :: Monad m => m BallotStyles
+getBallotStyles :: MonadIO m => m BallotStyles
 getBallotStyles = return ballotStyles
+
+ballotOption :: MonadIO m => BallotStyleId -> RaceId -> OptionId -> m (Maybe Option)
+ballotOption bsid rid oid = do
+  styles <- getBallotStyles
+  return $ do chosenStyle <- uniqueElement [ s | s <- styles, view bId s == bsid]
+              chosenRace <- uniqueElement [ r | r <- view bRaces chosenStyle, view rId r == rid]
+              uniqueElement [o | o <- view rOptions chosenRace, view oId o == oid]
+
+  where uniqueElement :: [a] -> Maybe a
+        uniqueElement [x] = Just x
+        uniqueElement _   = Nothing
 
 -- | An example ballot style.
 -- For now this is the only ballot style that is available to terminals.

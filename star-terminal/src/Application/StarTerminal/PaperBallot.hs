@@ -1,5 +1,6 @@
-{-# LANGUAGE ConstraintKinds  #-}
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE ConstraintKinds   #-}
+{-# LANGUAGE FlexibleContexts  #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Application.StarTerminal.PaperBallot (paperBallot) where
 
 import           Control.Arrow
@@ -9,6 +10,7 @@ import           Control.Monad.IO.Class          (MonadIO, liftIO)
 
 import           Data.ByteString.Lazy            (ByteString, toStrict)
 import qualified Data.ByteString.Base16.Lazy     as Base16
+import           Data.Foldable                   (find)
 import qualified Data.Map                        as M
 import           Data.Monoid
 import qualified Data.Text                       as T
@@ -17,6 +19,7 @@ import           Data.Text.Encoding                    (decodeUtf8With,
 import           Data.Text.Encoding.Error              (ignore)
 import           Data.Time                       (UTCTime, formatTime)
 
+import           Graphics.Barcode.Code128
 import           Graphics.PDF
 
 import           System.Locale                   (defaultTimeLocale)
@@ -32,20 +35,46 @@ import           Application.StarTerminal.State
 receiptFont :: PDFFont
 receiptFont = PDFFont Helvetica 16
 
-receiptStyle :: StandardStyle
+receiptStyle, ballotIdStyle :: StandardStyle
 receiptStyle = Font receiptFont black black
 
+ballotIdStyle = Font (PDFFont Helvetica 10) black black
+
+ballotBarcodeConfig :: BarcodeConfig
+ballotBarcodeConfig = BarcodeConfig { height = 50, barWidth = 1.0 }
+
+ballotWidth, ballotHeight :: Int
+ballotWidth = 500
+ballotHeight = 700
 
 -- | Generate a paper ballot and voter reciept as a PDF
-paperBallot :: MonadIO m => Ballot -> BallotStyle -> EncryptedRecord -> Terminal -> UTCTime -> m ByteString
-paperBallot ballot style voted term t = liftIO $ do
-  let rect = PDFRect 0 0 700 700 -- TODO compute size - potentially for each page
+paperBallot :: MonadIO m => Ballot -> BallotId -> BallotStyle -> EncryptedRecord -> Terminal -> UTCTime -> m ByteString
+paperBallot ballot (BallotId bid) style voted term t = liftIO $ do
+  let rect = PDFRect 0 0 ballotWidth ballotHeight
   pdfByteString standardDocInfo { compressed = False } rect $ do
     ballotPage <- addPage Nothing
     void . drawWithPage ballotPage $ do
-      displayFormattedText (Rectangle (10 :+ 10) (690 :+ 690))  NormalParagraph receiptStyle $ do
+      let barcodeStartCorner = (30 :+ (fromIntegral ballotHeight - 30 - (height ballotBarcodeConfig)))
+      (_ :+ y) <- case drawBarcode ballotBarcodeConfig (T.unpack bid) barcodeStartCorner of
+                   Left err -> fail (show err)
+                   Right draw -> draw
+      let idTextRect = Rectangle (35                              :+ (y - height ballotBarcodeConfig - 15)) 
+                                 ((fromIntegral ballotWidth - 30) :+ (y - height ballotBarcodeConfig - 5))
+
+      displayFormattedText idTextRect NormalParagraph ballotIdStyle $ do
+        paragraph . txt $ "Ballot ID: " <> T.unpack bid
+
+      let ballotSelectionRect =
+            Rectangle (30                              :+ 30)
+                      ((fromIntegral ballotWidth - 30) :+ (y - height ballotBarcodeConfig - 25))
+
+      displayFormattedText ballotSelectionRect NormalParagraph receiptStyle $ do
         paragraph . txt $ "Selections:"
-        mapM (paragraph . txt . ("   " ++)) (ballotText ballot style)
+        void $ mapM (paragraph . txt . ("   " ++) . T.unpack) (ballotText ballot style)
+
+        paragraph . txt $ "   -----------    "
+        
+        --TODO: ballot ID as barcode
 
     receiptPage <- addPage Nothing
     drawWithPage receiptPage $ do
@@ -61,12 +90,22 @@ paperBallot ballot style voted term t = liftIO $ do
 -- | Generate a human-readable summary of a ballot
 ballotText :: Ballot -- ^ The marked ballot selections
            -> BallotStyle -- ^ The specification of available races
-           -> [String]
-ballotText (Ballot selections) style = [ desc <> ": " <> selected k <> "\n"| (k, desc) <- keys ]
+           -> [T.Text]
+ballotText (Ballot selections) style = [ desc <> ": " <> (selected r k) <> "\n"
+                                       | (k, (desc, r)) <- keys
+                                       ]
   where
     -- Each race in the ballot style gives rise to a key used to look
     -- up the selection in the ballot record. Here, we compute these
     -- keys and retrieve their associated human-readable names.
-    keys = map (key style &&& T.unpack . view rDescription) (view bRaces style)
-    selected k = maybe "No selection" T.unpack $ M.lookup k selections
+    keys :: [(BallotKey, (T.Text, Race))]
+    keys = map (key style &&& (view rDescription &&& id)) (view bRaces style)
+    selected :: Race -> T.Text -> T.Text
+    selected r k = maybe "No selection" id $
+                     do selectedId  <- M.lookup k selections
+                        let opts = view rOptions r
+                        selectedOpt <- find ((== selectedId) . view oId) opts
+                        return $ view oName selectedOpt <> maybe "" parens (view oParty selectedOpt)
+                          where parens = (" (" <>) . (<> ")")
+
 
