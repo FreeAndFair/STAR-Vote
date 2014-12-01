@@ -36,8 +36,8 @@ starPage = Page mempty
                 ]
 
 starPageWithContents :: T.Text -> Html -> Page
-starPageWithContents title body =
-  set pageTitle title . set pageContents body $ starPage
+starPageWithContents title_ body_ =
+  set pageTitle title_ . set pageContents body_ $ starPage
 
 pageHtml :: Page -> Html
 pageHtml p =

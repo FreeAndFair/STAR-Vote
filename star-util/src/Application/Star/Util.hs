@@ -4,9 +4,7 @@ module Application.Star.Util where
 import Control.Applicative
 import Control.Monad.CatchIO
 import Control.Monad.Except
-import Control.Monad.Reader
 import Control.Monad.State
-import Control.Monad.Trans.Maybe
 import Control.Lens
 import Data.Acid (AcidState, EventResult, EventState, QueryEvent, UpdateEvent, query, update)
 import Data.Aeson
@@ -110,7 +108,7 @@ readParam extractParams name = do
 
 reportWhere :: MonadError Text m => ByteString -> Either Text a -> m a
 reportWhere name (Left  s) = throwError (s <> " argument in parameter " <> T.pack (show name))
-reportWhere name (Right v) = return v
+reportWhere _    (Right v) = return v
 
 readURIParam, readBodyParam :: (MonadError Text m, MonadSnap m, Read a) => ByteString -> m a
 readURIParam  = readParam rqQueryParams
