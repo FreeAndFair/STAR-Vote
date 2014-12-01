@@ -23,7 +23,7 @@ library
                      , HDBC-sqlite3 >=2.3.3.0 && <2.4
                      , aeson >=0.8.0.2 && < 0.9
                      , base >=4.7 && <4.8
-                     , base64-bytestring >=0.1.0.1 && <0.2
+                     , base64-bytestring >=0.1.0.1 && <1.1
                      , byteable >= 0.1.1
                      , bytestring >= 0.10.4.0
                      , convertible >= 1.1.0.0 && <1.2
