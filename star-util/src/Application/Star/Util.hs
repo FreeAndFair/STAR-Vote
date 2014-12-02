@@ -124,7 +124,7 @@ render h = do
 -- | Get the ballot styles for the current election
 -- For now, it's a stub. Should be filled out with something that consults the pre-election configuration.
 getBallotStyles :: MonadIO m => m BallotStyles
-getBallotStyles = return ballotStyles
+getBallotStyles = return exampleBallotStyles
 
 ballotOption :: MonadIO m => BallotStyleId -> RaceId -> OptionId -> m (Maybe Option)
 ballotOption bsid rid oid = do
@@ -141,8 +141,8 @@ ballotOption bsid rid oid = do
 -- For now this is the only ballot style that is available to terminals.
 -- In the future ballot styles will be provided during configuration,
 -- rather than hard-coded.
-ballotStyles :: BallotStyles
-ballotStyles =
+exampleBallotStyles :: BallotStyles
+exampleBallotStyles =
   [ BallotStyle
     { _bId = "oregon-2014"
     , _bRaces =
