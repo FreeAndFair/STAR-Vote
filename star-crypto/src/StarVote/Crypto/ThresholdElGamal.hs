@@ -1,11 +1,12 @@
 {-# LANGUAGE
     GADTs,
-    MultiParamTypeClasses
+    MultiParamTypeClasses,
+    PackageImports
   #-}
 module StarVote.Crypto.ThresholdElGamal where
 
 import Crypto.Classes
-import Crypto.Random
+import "crypto-random" Crypto.Random
 import Control.Monad
 import Control.Monad.CryptoRandom
 
