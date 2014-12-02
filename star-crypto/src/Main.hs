@@ -1,3 +1,4 @@
+-- extensions and imports {{{
 {-# LANGUAGE
       AutoDeriveTypeable,
       FlexibleContexts,
@@ -49,6 +50,20 @@ import qualified Text.Blaze.Html4.Strict as Tag
 import qualified Text.Blaze.Html4.Strict.Attributes as Attr
 import qualified Crypto.PubKey.ECC.Generate as ECC
 import qualified Crypto.Random.DRBG.HMAC as HMAC
+-- }}}
+-- boring stuff that must come early due to TH staging restrictions {{{
+newtype PossibleKey = PossibleKey (Maybe PublicKey)
+instance Default PossibleKey where def = PossibleKey def
+
+keyUnchanged :: PublicKey -> Update PossibleKey (Either Text ())
+keyUnchanged new = runExceptT $ do
+  PossibleKey mold <- get
+  case mold of
+    Nothing  -> put . PossibleKey . Just $ new
+    Just old -> unless (old == new) (throwError "Yikes, the bulletin board key has changed out from under us! Something is very wrong.")
+
+makeAcidic ''PossibleKey ['keyUnchanged]
+-- }}}
 
 main :: IO ()
 main = do
@@ -58,11 +73,13 @@ main = do
   -- see https://github.com/acid-state/acid-state/issues/47
   seed      <- newGenIO :: IO HmacDRBG
   stateFile <- getDataFileName "key-generation"
+  bbKeyFile <- getDataFileName "bb-public-key"
   state     <- openLocalStateFrom stateFile seed
+  bbKey     <- openLocalStateFrom bbKeyFile def
   contact   <- readContactInfo state
   flip statefulErrorServe state . flip runReaderT contact . route $
     [ methodName GET  "initialize.html" quorumConfiguration
-    , methodName POST "initialize.html" generateShares
+    , methodName POST "initialize.html" (generateShares bbKey)
     , methodName GET  "register.html"   registerForm
     , methodName POST "register.html"   register
     ]
@@ -89,7 +106,7 @@ quorumConfiguration = page "Quorum Configuration" $ do
     question "threshold"     "1" "How many trustees should be required when finalizing the election?"
     Tag.div (input ! type_ "submit" ! value "generate key shares")
 
-generateShares = do
+generateShares bbKey = do
   n <- readBodyParam "trustee_count"
   t <- readBodyParam "threshold"
   when (n < 1) (throwError "Trustee count must be positive.")
@@ -102,7 +119,7 @@ generateShares = do
         }
   (TEGPublicKey _ public, TEGPrivateKey _ private) <- errorUpdate (BuildKeyPairTEG params)
   shares <- errorUpdate (BuildShares params private)
-  bbResult <- postpone . post . pack . show $ public
+  bbResult <- postpone . post bbKey . pack . show $ public
   page "Shares" (fromString . show $ (public, shares, bbResult))
 
 registerForm = page "Bulletin Board Registration" $ do
@@ -138,11 +155,16 @@ data BBContactInfo = BBContactInfo
   } deriving (Eq, Read, Show)
 
 post :: (MonadError Text m, MonadReader BBContactInfo m, MonadIO m, MonadState (AcidState HmacDRBG) m)
-     => Text -> m ()
-post msg = do
+     => AcidState PossibleKey -> Text -> m ()
+post bbKey msg = do
+  -- zeroth step: ask the server about its public key, and double-check that it
+  -- matches any previous public key we've seen from it
+  url      <- asks (endpoint "pubkey")
+  pub      <- getJSON url
+  liftIO (update bbKey (KeyUnchanged pub)) >>= liftId
+
   -- first step: check that the server's latest hash is valid
   url      <- asks (endpoint "current-hash")
-  pub      <- asks public
   current  <- getJSON url
   now      <- liftIO getCurrentTime
   liftBB $ BB.checkCurrentHash pub now BB.epsilon current
@@ -150,6 +172,7 @@ post msg = do
   -- second step: request that our message get posted
   url      <- asks (endpoint "post")
   priv     <- asks private
+  pub      <- asks public
   newMsg   <- doUpdate $ PrepareMessage priv (BB.Message msg) now pub (forgetSignature current)
   accepted <- postJSON url newMsg
   liftBB $ BB.checkAcceptedMessage pub now BB.epsilon accepted
@@ -193,6 +216,9 @@ liftHTTP url = liftEither (\e -> "Error getting URL " <> pack url <> ": " <> pac
 liftBB :: MonadError Text m => Either String a -> m a
 liftBB = liftEither pack
 
+liftId :: MonadError Text m => Either Text a -> m a
+liftId = liftEither Prelude.id
+
 -- don't look, it's too boring {{{
 -- state modifications during failing transactions are not preserved
 transaction :: e ~ GenError => CRand HmacDRBG e a -> Update HmacDRBG (Either e a)
@@ -213,6 +239,7 @@ deriving instance Typeable BB.NewMessage
 join <$> mapM (deriveSafeCopy 0 'base)
   [ ''HMAC.State, ''SHA512, ''GenError
   , ''BuildKeyPairTEG, ''BuildShares, ''PrepareMessage, ''BuildKeyPairECC
+  , ''PossibleKey
   , ''TEGParams, ''TEGPublicKey, ''TEGPrivateKey, ''Shares
   , ''PublicKey, ''PrivateKey, ''Signature
   , ''BB.Message, ''BB.NewMessage, ''BB.Signed
