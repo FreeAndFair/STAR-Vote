@@ -181,7 +181,7 @@ endpoint :: String -> BBContactInfo -> String
 endpoint name info = "http://" <> server info <> "/" <> name <> ".json"
 
 forgetSignature :: BB.CurrentHash -> BB.Hash
-forgetSignature = undefined
+forgetSignature (BB.CurrentHash (BB.Signed { BB.message = (hash, _) })) = hash
 
 getJSON :: (MonadError Text m, MonadIO m, FromJSON a) => String -> m a
 getJSON url = do
