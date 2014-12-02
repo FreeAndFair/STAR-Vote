@@ -301,7 +301,7 @@ The writer sends the message to the board. Accompanying this is:
 > prepareMessage g k message tw w h =
 >   let h'           = toBytes $ sha256 (message, tw, w, h)
 >       (signed, g') = sign g k h'
->   in (NewMessage message tw w signed, g)
+>   in (NewMessage message tw w signed, g')
 
 When the board recieves this message, it needs to check the following:
  1. The signature is valid according to the writer's public key
