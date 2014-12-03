@@ -164,7 +164,7 @@ postMsg2JSON =
          do dbkey <- withDB $ \db -> getAuthorKey db n
             h0 <- withDB getStateHash
             case dbkey of
-              Left err -> fail err
+              Left err -> sendJSON $ "Couldn't fetch user " ++ T.unpack n ++ ": " ++ err
               Right k' ->
                 if k /= k'
                   then do liftIO . putStrLn $ "Mismatching keys for user " ++ T.unpack n

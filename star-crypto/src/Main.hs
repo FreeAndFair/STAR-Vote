@@ -226,8 +226,10 @@ getJSON url = do
 
 postJSON :: (MonadError Text m, MonadIO m, ToJSON a, FromJSON b)
          => String -> a -> m b
-postJSON url body = postJSONRaw url body
-                >>= liftBB . eitherDecode . UTF8.fromString . HTTP.rspBody
+postJSON url body = do
+  resp <- postJSONRaw url body
+  liftEither (\e -> fromString $ e <> " while parsing " <> HTTP.rspBody resp)
+             (eitherDecode . UTF8.fromString . HTTP.rspBody $ resp)
 
 postJSON_ :: (MonadError Text m, MonadIO m, ToJSON a)
           => String -> a -> m ()
