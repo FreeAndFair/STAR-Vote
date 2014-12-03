@@ -164,6 +164,7 @@ register = do
   BB.Author name pub <- asks author
   url <- asks (endpoint "register")
   postJSON_ url (name, pub)
+  page "Registered" $ p "Registration complete. Check the BB's list of users to verify."
 
 methodName method_ name action = (name, method method_ action)
 
