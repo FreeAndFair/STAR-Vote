@@ -47,43 +47,48 @@ ballotWidth, ballotHeight :: Int
 ballotWidth = 500
 ballotHeight = 700
 
+
+-- TODO: c_bid must be included!
+-- | Draw the contents of the paper ballot, to be inserted into the ballot box
+ballotPageContents :: T.Text -> BallotStyle -> Ballot -> Draw ()
+ballotPageContents bid style ballot = do
+  let barcodeStartCorner = (30 :+ (fromIntegral ballotHeight - 30 - (height ballotBarcodeConfig)))
+  (_ :+ y) <- case drawBarcode ballotBarcodeConfig (T.unpack bid) barcodeStartCorner of
+               Left err -> fail (show err)
+               Right draw -> draw
+  let idTextRect = Rectangle (35                              :+ (y - height ballotBarcodeConfig - 15))
+                             ((fromIntegral ballotWidth - 30) :+ (y - height ballotBarcodeConfig - 5))
+  displayFormattedText idTextRect NormalParagraph ballotIdStyle $ do
+    paragraph . txt $ "Ballot ID: " <> T.unpack bid
+  let ballotSelectionRect =
+        Rectangle (30                              :+ 30)
+                  ((fromIntegral ballotWidth - 30) :+ (y - height ballotBarcodeConfig - 25))
+  displayFormattedText ballotSelectionRect NormalParagraph receiptStyle $ do
+    paragraph . txt $ "Selections:"
+    void $ mapM (paragraph . txt . ("   " ++) . T.unpack) (ballotText ballot style)
+    paragraph . txt $ "   -----------    "
+
+
+receiptPageContents :: TerminalId -> UTCTime -> String -> Draw ()
+receiptPageContents term t hashView = do
+  displayFormattedText (Rectangle (10 :+ 10) (690 :+ 690))  NormalParagraph receiptStyle $ do
+    paragraph . txt $ "Terminal ID: " ++ (T.unpack . decodeUtf8With ignore . toStrict . fromSB) termId
+    paragraph . txt $ formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%SZ" t
+    paragraph . txt $ "Confirmation code: " ++ hashView
+  where (TerminalId termId) = term
+
+
 -- | Generate a paper ballot and voter reciept as a PDF
 paperBallot :: MonadIO m => Ballot -> BallotId -> BallotStyle -> EncryptedRecord -> Terminal -> UTCTime -> m ByteString
 paperBallot ballot (BallotId bid) style voted term t = liftIO $ do
   let rect = PDFRect 0 0 ballotWidth ballotHeight
   pdfByteString standardDocInfo { compressed = False } rect $ do
     ballotPage <- addPage Nothing
-    void . drawWithPage ballotPage $ do
-      let barcodeStartCorner = (30 :+ (fromIntegral ballotHeight - 30 - (height ballotBarcodeConfig)))
-      (_ :+ y) <- case drawBarcode ballotBarcodeConfig (T.unpack bid) barcodeStartCorner of
-                   Left err -> fail (show err)
-                   Right draw -> draw
-      let idTextRect = Rectangle (35                              :+ (y - height ballotBarcodeConfig - 15)) 
-                                 ((fromIntegral ballotWidth - 30) :+ (y - height ballotBarcodeConfig - 5))
-
-      displayFormattedText idTextRect NormalParagraph ballotIdStyle $ do
-        paragraph . txt $ "Ballot ID: " <> T.unpack bid
-
-      let ballotSelectionRect =
-            Rectangle (30                              :+ 30)
-                      ((fromIntegral ballotWidth - 30) :+ (y - height ballotBarcodeConfig - 25))
-
-      displayFormattedText ballotSelectionRect NormalParagraph receiptStyle $ do
-        paragraph . txt $ "Selections:"
-        void $ mapM (paragraph . txt . ("   " ++) . T.unpack) (ballotText ballot style)
-
-        paragraph . txt $ "   -----------    "
-        
-        --TODO: ballot ID as barcode
+    void $ drawWithPage ballotPage (ballotPageContents bid style ballot)
 
     receiptPage <- addPage Nothing
-    drawWithPage receiptPage $ do
-      displayFormattedText (Rectangle (10 :+ 10) (690 :+ 690))  NormalParagraph receiptStyle $ do
-        paragraph . txt $ "Terminal ID: " ++ (T.unpack . decodeUtf8With ignore . toStrict . fromSB) termId
-        paragraph . txt $ formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%SZ" t
-        paragraph . txt $ "Confirmation code: " ++ hashView
-  where (TerminalId termId) = view tId term -- the unique ID of the voting terminal
-        (PublicHash hash) = view zp voted
+    drawWithPage receiptPage (receiptPageContents (view tId term) t hashView)
+  where (PublicHash hash) = view zp voted
         hashView = take 20 . T.unpack . decodeUtf8With ignore . toStrict . Base16.encode . fromSB $ hash
 --        bid    = view bId --voted -- the unique ID of the ballot to print
 
