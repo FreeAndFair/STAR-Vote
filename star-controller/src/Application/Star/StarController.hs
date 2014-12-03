@@ -15,7 +15,7 @@ import Application.Star.HashChain
 import Application.Star.ID
 import Application.Star.SerializableBS
 import Application.Star.Templates
-import Application.Star.Util hiding (method)
+import Application.Star.Util hiding (method, ballotStyles)
 import Application.Star.CommonImports
 import Control.Arrow
 import Control.Concurrent
