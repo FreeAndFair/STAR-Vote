@@ -24,11 +24,12 @@ import Crypto.Types.PubKey.ECC
 import Data.Acid
 import Data.Aeson
 import Data.Aeson.TH
+import Data.Array (assocs)
 import Data.Byteable
 import Data.ByteString.Lazy (toChunks)
 import Data.SafeCopy
 import Data.String
-import Data.Text
+import Data.Text (Text)
 import Data.Time.Clock
 import Data.Typeable
 import Paths_star_crypto
@@ -45,6 +46,7 @@ import qualified Data.Acid.Advanced as Acid
 import qualified Data.Binary as Binary
 import qualified Data.Binary.Put as Binary
 import qualified Data.ByteString.Lazy.UTF8 as UTF8
+import qualified Data.Text as Text
 import qualified Network.HTTP as HTTP
 import qualified Text.Blaze.Html4.Strict as Tag
 import qualified Text.Blaze.Html4.Strict.Attributes as Attr
@@ -82,6 +84,7 @@ main = do
     , methodName POST "initialize.html" (generateShares bbKey)
     , methodName GET  "register.html"   registerForm
     , methodName POST "register.html"   register
+    , methodName POST "republish.html"  (republish bbKey)
     ]
 
 readContactInfo :: AcidState HmacDRBG -> IO BBContactInfo
@@ -91,12 +94,12 @@ readContactInfo state
 
 initContactInfo :: AcidState HmacDRBG -> IOException -> IO BBContactInfo
 initContactInfo state _ = do
-  hPutStrLn stderr "Missing or corrupt contact information for the bulletin board. Writing a default configuration."
+  contactFile <- getDataFileName "bb-contact-info"
+  hPutStrLn stderr $ "Missing or corrupt contact information for the bulletin board. Writing a default configuration to <" <> contactFile <> ">."
   -- TODO: this curve was chosen arbitrarily, perhaps some more thought should
   -- go into this
   (pub, priv) <- update state (BuildKeyPairECC (getCurveByName SEC_p112r1))
-  let result = BBContactInfo "localhost:8000" pub priv
-  contactFile <- getDataFileName "bb-contact-info"
+  let result = BBContactInfo "localhost:8000" (BB.Author "Election Trustees" pub) priv
   writeFile contactFile (show result)
   return result
 
@@ -119,18 +122,47 @@ generateShares bbKey = do
         }
   (TEGPublicKey _ public, TEGPrivateKey _ private) <- errorUpdate (BuildKeyPairTEG params)
   shares <- errorUpdate (BuildShares params private)
-  bbResult <- postpone . post bbKey . pack . show $ public
-  page "Shares" (fromString . show $ (public, shares, bbResult))
+  publishShares bbKey public shares
 
-registerForm = page "Bulletin Board Registration" $ do
-  form ! Attr.method "POST" $ do
-    question "name" "Election Trustees" "Type a human-readable name to associate with the election officials' public key."
-    Tag.div (input ! type_ "submit" ! value "register with the bulletin board")
+republish bbKey = do
+  public <- readBodyParam "public"
+  shares <- readBodyParam "shares"
+  publishShares bbKey public (Shares shares)
+
+publishShares bbKey public (Shares shares) = do
+  bbResult <- postpone . post bbKey . fromString . show $ (public :: Integer)
+  page "Shares" $ do
+    table $ do
+      entry "public key" public
+      forM_ (assocs shares) $ \(i, e) ->
+        entry ("private key share " <> fromString (show i)) e
+    case bbResult of
+      Left err -> do
+        p $ "WARNING! This public key was not published to the bulletin board. Guru meditation: " <> fromString (Text.unpack err)
+        form ! Attr.method "POST" ! action "republish.html" $ do
+          hidden "public" public
+          hidden "shares" shares
+          input ! type_ "submit" ! value "try again"
+      Right _ -> p "Public key successfully published."
+  where
+  entry  k v = tr (td k >> (td . fromString . show) v)
+  hidden k v = input ! type_ "hidden" ! name k ! (value . fromString . show) v
+
+registerForm = do
+  domain <- asks server
+  BB.Author name pub <- asks author
+  page "Bulletin Board Registration" $ do
+    p . fromString . unwords $
+      [ "Ready to register with ", domain
+      , "as", Text.unpack name
+      , "with public key", show pub
+      ]
+    form ! Attr.method "POST" $
+      Tag.div (input ! type_ "submit" ! value "register")
 
 register = do
-  name <- decodeParam rqPostParams "name"
-  pub  <- asks public
-  url  <- asks (endpoint "register")
+  BB.Author name pub <- asks author
+  url <- asks (endpoint "register")
   postJSON_ url (name, pub)
 
 methodName method_ name action = (name, method method_ action)
@@ -143,14 +175,14 @@ page title content = render $ docTypeHtml ! lang "en" $ do
   Tag.title title
   content
 
-errorUpdate v = doUpdate v >>= either (throwError . pack . show) return
+errorUpdate v = doUpdate v >>= either (throwError . fromString . show) return
 
 postpone :: MonadError e m => m a -> m (Either e a)
 postpone act = catchError (Right `liftM` act) (return . Left)
 
 data BBContactInfo = BBContactInfo
   { server  :: String
-  , public  :: PublicKey
+  , author  :: BB.Author
   , private :: PrivateKey
   } deriving (Eq, Read, Show)
 
@@ -172,8 +204,8 @@ post bbKey msg = do
   -- second step: request that our message get posted
   url      <- asks (endpoint "post")
   priv     <- asks private
-  pub      <- asks public
-  newMsg   <- doUpdate $ PrepareMessage priv (BB.Message msg) now pub (forgetSignature current)
+  author   <- asks author
+  newMsg   <- doUpdate $ PrepareMessage priv (BB.Message msg) now author (forgetSignature current)
   accepted <- postJSON url newMsg
   liftBB $ BB.checkAcceptedMessage pub now BB.epsilon accepted
 
@@ -188,8 +220,8 @@ getJSON url = do
   resp <- (liftIO . HTTP.simpleHTTP . HTTP.getRequest) url >>= liftHTTP url
   -- TODO: use liftEither/eitherDecode instead
   case decode . UTF8.fromString . HTTP.rspBody $ resp of
-    Nothing -> throwError $  "Failed to decode from " <> pack url <> ": "
-                          <> (pack . show . HTTP.rspBody) resp
+    Nothing -> throwError $  "Failed to decode from " <> fromString url <> ": "
+                          <> (fromString . show . HTTP.rspBody) resp
     Just a  -> return a
 
 postJSON :: (MonadError Text m, MonadIO m, ToJSON a, FromJSON b)
@@ -211,10 +243,10 @@ liftEither :: MonadError Text m => (e -> Text) -> Either e a -> m a
 liftEither f = either (throwError . f) return
 
 liftHTTP :: (MonadError Text m, Show e) => String -> Either e a -> m a
-liftHTTP url = liftEither (\e -> "Error getting URL " <> pack url <> ": " <> pack (show e))
+liftHTTP url = liftEither (\e -> "Error getting URL " <> fromString url <> ": " <> fromString (show e))
 
 liftBB :: MonadError Text m => Either String a -> m a
-liftBB = liftEither pack
+liftBB = liftEither fromString
 
 liftId :: MonadError Text m => Either Text a -> m a
 liftId = liftEither Prelude.id
@@ -230,19 +262,20 @@ transaction m = do
 
 data BuildKeyPairTEG = BuildKeyPairTEG TEGParams
 data BuildShares     = BuildShares     TEGParams Integer
-data PrepareMessage  = PrepareMessage PrivateKey BB.Message UTCTime PublicKey BB.Hash
+data PrepareMessage  = PrepareMessage PrivateKey BB.Message UTCTime BB.Author BB.Hash
 data BuildKeyPairECC = BuildKeyPairECC Curve
 
 deriving instance Typeable SHA512
 deriving instance Typeable BB.Message
 deriving instance Typeable BB.NewMessage
+deriving instance Typeable BB.Author
 join <$> mapM (deriveSafeCopy 0 'base)
   [ ''HMAC.State, ''SHA512, ''GenError
   , ''BuildKeyPairTEG, ''BuildShares, ''PrepareMessage, ''BuildKeyPairECC
   , ''PossibleKey
   , ''TEGParams, ''TEGPublicKey, ''TEGPrivateKey, ''Shares
   , ''PublicKey, ''PrivateKey, ''Signature
-  , ''BB.Message, ''BB.NewMessage, ''BB.Signed
+  , ''BB.Message, ''BB.Author, ''BB.NewMessage, ''BB.Signed
   , ''Point, ''Curve, ''CurveBinary, ''CurveCommon, ''CurvePrime
   ]
 
@@ -279,7 +312,7 @@ instance Acid.Method BuildShares where
 
 instance UpdateEvent PrepareMessage
 instance Acid.Method PrepareMessage where
-  type MethodResult PrepareMessage = BB.NewMessage BB.Message PublicKey
+  type MethodResult PrepareMessage = BB.NewMessage BB.Message BB.Author
   type MethodState  PrepareMessage = HmacDRBG
 
 instance UpdateEvent BuildKeyPairECC

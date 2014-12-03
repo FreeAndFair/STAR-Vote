@@ -47,7 +47,7 @@ import Database.HDBC.Sqlite3
 data Author = Author { authorName :: T.Text
                      , authorPubKey :: ECDSA.PublicKey
                      }
-  deriving (Eq, Show)
+  deriving (Eq, Read, Show)
 $(deriveJSON defaultOptions ''Author)
 
 instance Byteable Author where
