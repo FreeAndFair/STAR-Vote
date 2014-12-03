@@ -1,29 +1,49 @@
-{-# LANGUAGE ConstraintKinds, FlexibleContexts, FlexibleInstances, GeneralizedNewtypeDeriving, MultiParamTypeClasses, OverloadedStrings, UndecidableInstances #-}
-module Application.Star.Util where
+{-# LANGUAGE ConstraintKinds            #-}
+{-# LANGUAGE FlexibleContexts           #-}
+{-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE UndecidableInstances       #-}
+module Application.Star.Util (
+  -- * AcidState helpers
+  MonadAcidState, doQuery, doUpdate,
+  -- * HTTP and HTML helpers
+  errorResponse, writeShow, method,
+  statefulErrorServe, statefulErrorServeDef,
+  readJSONBody, decodeParam, readParam,
+  reportWhere,
+  readURIParam, readBodyParam,
+  render,
+  -- * Global election configuration information
+  getBallotStyles, ballotOption
+  ) where
 
-import Control.Applicative
-import Control.Monad.CatchIO
-import Control.Monad.Except
-import Control.Monad.State
-import Control.Lens
-import Data.Acid (AcidState, EventResult, EventState, QueryEvent, UpdateEvent, query, update)
-import Data.Aeson
-import Data.ByteString (ByteString)
-import Data.CaseInsensitive (mk)
-import Data.Char
-import Data.Default
-import Data.Monoid
-import Data.Text (Text)
-import Data.Text.Encoding
-import Snap.Core hiding (method)
-import Snap.Iteratee (TooManyBytesReadException)
-import Snap.Http.Server (quickHttpServe)
-import Text.Blaze.Html5 (Html)
-import Text.Blaze.Html.Renderer.Utf8 (renderHtml)
-import qualified Data.Map  as M
-import qualified Data.Text as T
+import           Control.Applicative
+import           Control.Lens
+import           Control.Monad.CatchIO
+import           Control.Monad.Except
+import           Control.Monad.State
+import           Data.Acid                     (AcidState, EventResult,
+                                                EventState, QueryEvent,
+                                                UpdateEvent, query, update)
+import           Data.Aeson
+import           Data.ByteString               (ByteString)
+import           Data.CaseInsensitive          (mk)
+import           Data.Char
+import           Data.Default
+import qualified Data.Map                      as M
+import           Data.Monoid
+import           Data.Text                     (Text)
+import qualified Data.Text                     as T
+import           Data.Text.Encoding
+import           Snap.Core                     hiding (method)
+import           Snap.Http.Server              (quickHttpServe)
+import           Snap.Iteratee                 (TooManyBytesReadException)
+import           Text.Blaze.Html.Renderer.Utf8 (renderHtml)
+import           Text.Blaze.Html5              (Html)
 
-import Application.Star.BallotStyle
+import           Application.Star.BallotStyle
 
 type MonadAcidState a m = MonadState (AcidState a) m
 
@@ -126,6 +146,8 @@ render h = do
 getBallotStyles :: MonadIO m => m BallotStyles
 getBallotStyles = return exampleBallotStyles
 
+-- | Attempt to retrieve a full ballot option, given a ballot style,
+-- race ID, and option ID.
 ballotOption :: MonadIO m => BallotStyleId -> RaceId -> OptionId -> m (Maybe Option)
 ballotOption bsid rid oid = do
   styles <- getBallotStyles
