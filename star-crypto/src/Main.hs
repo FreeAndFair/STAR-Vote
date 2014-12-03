@@ -122,15 +122,15 @@ generateShares bbKey = do
         }
   (TEGPublicKey _ public, TEGPrivateKey _ private) <- errorUpdate (BuildKeyPairTEG params)
   shares <- errorUpdate (BuildShares params private)
-  publishShares bbKey public shares
+  publishKey bbKey public shares
 
 republish bbKey = do
   public <- readBodyParam "public"
   shares <- readBodyParam "shares"
-  publishShares bbKey public (Shares shares)
+  publishKey bbKey public (Shares shares)
 
-publishShares bbKey public (Shares shares) = do
-  bbResult <- postpone . post bbKey . fromString . show $ (public :: Integer)
+publishKey bbKey public (Shares shares) = do
+  bbResult <- postpone . post bbKey . fromString $ "public key " <> show (public :: Integer)
   page "Shares" $ do
     table $ do
       entry "public key" public
