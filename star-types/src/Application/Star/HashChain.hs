@@ -11,7 +11,7 @@ which contains an encrypted vote along with public and internal hashes.
 This is the type that star-terminal records and transmits to a controller.
  -}
 module Application.Star.HashChain
-  ( Encrypted
+  ( Encrypted (..)
   , EncryptedRecord (..)
   , InternalHash (..)
   , Proof
@@ -20,6 +20,7 @@ module Application.Star.HashChain
   , TerminalId (..)
   , encryptBallot
   , encryptRaces
+  , encryptRace
   , encryptRecord
   , internalHash
   , publicHash
@@ -81,7 +82,7 @@ data EncryptedRecord = EncryptedRecord
   , _cv   :: Encrypted Ballot
   , _pv   :: Proof Ballot  -- ^ NIZK proof of ballot correctness - not yet implemented
     -- | selections for each race, encrypted individually
-  , _cbid :: Encrypted [Hash RaceSelection]
+  , _cbid :: [Encrypted (BallotId, RaceSelection)]
   , _m    :: TerminalId
   , _zp   :: PublicHash
   , _zi   :: InternalHash
@@ -123,14 +124,14 @@ encryptBallot k b = (Encrypted (SB (encrypt k b)), proof)
   where
     proof = Proof mempty -- TODO: not an actual proof
 
-encryptRaces :: PublicKey -> BallotId -> [RaceSelection] -> Encrypted [Hash RaceSelection]
-encryptRaces k bid rs = Encrypted $ SB $ foldl' (<||>) mempty (map (encryptRace k bid) rs)
+encryptRaces :: PublicKey -> BallotId -> [RaceSelection] -> [Encrypted (BallotId, RaceSelection)]
+encryptRaces k bid = map (encryptRace k bid)
 
 encryptRace :: PublicKey
             -> BallotId
             -> RaceSelection
-            -> Encrypted (Hash RaceSelection)
-encryptRace k bid r = Encrypted $ SB $ encrypt k (hash (bid <||> r))
+            -> Encrypted (BallotId, RaceSelection)
+encryptRace k bid r = Encrypted $ SB $ encrypt k (bid, r)
 
 publicHash :: BallotCastingId
            -> Ext (Encrypted Ballot)
@@ -144,7 +145,7 @@ publicHash bcid extCv pv m zp' =
 internalHash :: BallotCastingId
              -> Encrypted Ballot
              -> Proof Ballot
-             -> Encrypted [Hash RaceSelection]
+             -> [Encrypted (BallotId, RaceSelection)]
              -> TerminalId
              -> InternalHash
              -> InternalHash
