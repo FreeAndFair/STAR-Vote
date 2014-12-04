@@ -16,15 +16,16 @@ Summary:
     $ cabal sandbox init
     $ cabal install -j ./append-only-bb ./star-{controller,crypto,terminal,types,util,voter-db}
 
-1.  Install GHC, cabal-install, llvm, and sqlite. Often this is as simple as
-    `apt-get install ghc cabal-install llvm libsqlite3-dev` or your distro's
-    package manager's equivalent. This should be done as root. You will need
-    GHC 7.8 or later and cabal-install 1.18 or later. If your distro doesn't
-    have a new enough GHC, you can visit [the GHC downloads page for
-    7.8.3](https://www.haskell.org/ghc/download_ghc_7_8_3). If your distro
-    doesn't have a new enough cabal-install, you can bootstrap an old
-    cabal-install by running `cabal update && cabal install cabal-install`,
-    which will put an executable in `~/.cabal/bin` by default.
+1.  Install GHC, cabal-install, llvm 3.4, and sqlite. Often this is as
+    simple as `apt-get install ghc cabal-install llvm libsqlite3-dev`
+    or your distro's package manager's equivalent. This should be done
+    as root. You will need GHC 7.8 or later and cabal-install 1.18 or
+    later. If your distro doesn't have a new enough GHC, you can visit
+    [the GHC downloads page for 7.8.3](https://www.haskell.org/ghc/download_ghc_7_8_3). If
+    your distro doesn't have a new enough cabal-install, you can
+    bootstrap an old cabal-install by running `cabal update && cabal
+    install cabal-install`, which will put an executable in
+    `~/.cabal/bin` by default.
 2.  Clone the repository. You've probably already done this, since you're
     looking at this file. If not, github has good instructions on how to do this
     kind of thing; you want the `GaloisInc/e2eviv` repository. If you have
