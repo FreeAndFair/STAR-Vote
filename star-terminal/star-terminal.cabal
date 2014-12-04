@@ -33,8 +33,18 @@ Description:
   * @./start.sh@
   * In a web browser, navigate to <http://localhost:8000/ballots>
   * Enter the code: 25682
-
-
+data-files:
+  static/bootstrap-3.2.0-dist/css/*.css
+  static/bootstrap-3.2.0-dist/css/*.min.css
+  static/bootstrap-3.2.0-dist/css/*.css.map
+  static/bootstrap-3.2.0-dist/fonts/glyphicons-halflings-regular.eot
+  static/bootstrap-3.2.0-dist/fonts/glyphicons-halflings-regular.svg
+  static/bootstrap-3.2.0-dist/fonts/glyphicons-halflings-regular.ttf
+  static/bootstrap-3.2.0-dist/fonts/glyphicons-halflings-regular.woff
+  static/bootstrap-3.2.0-dist/js/*.js
+  static/bootstrap-3.2.0-dist/js/*.min.js
+  static/css/*.css
+  static/js/*.js
 
 Executable star-terminal
   hs-source-dirs: src

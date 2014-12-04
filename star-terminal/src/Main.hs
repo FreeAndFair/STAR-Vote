@@ -82,7 +82,8 @@ main = do
   regURL' <- query state GetRegisterURL
   register regURL' snapConfig
 
-  statefulErrorServe site state
+  staticDir <- getDataFileName "static"
+  statefulErrorServe (site staticDir) state
 
   where register :: String -> Config m a -> IO ()
         register controllerURL cfg = maybe (error "Can't get host info for registration")
@@ -103,8 +104,8 @@ main = do
 
 
 -- | Defines URLs and request methods associated with each server handler.
-site :: StarTerm m => m ()
-site =
+site :: StarTerm m => FilePath -> m ()
+site static =
     ifTop (redirect "/ballots") <|>
     route [ ("ballots",                       method GET  askForBallotCode)
           , ("ballots/:code/step/:stepId",    method GET  showBallotStep)
@@ -115,7 +116,7 @@ site =
           , ("receipt/:bid/print",            method GET  printReceiptPDF)
           , ("ballots/:ballotId/codes/:code", method POST recordBallotStyleCode)
           ] <|>
-    dir "static" (serveDirectory "static") <|>
+    dir "static" (serveDirectory static) <|>
     do404
 
 decode :: Int64 -> String -> SerializableBS
