@@ -206,8 +206,8 @@ search = do
                     H.tr . mconcat . map H.td $
                       [ H.toHtml $ view voterName v
                       , case status of
-                          Hasn't -> "Hasn't voted"
-                          Voted -> "Has voted"
+                          Hasn't -> "Hasn't checked in"
+                          Voted -> "Has checked in"
                       , H.pre . H.toHtml $ view voterAddress v
                       , H.ul . mconcat . map H.li $
                           [ H.a ! A.href (H.toValue $ "/sticker?voter=" ++ show vid) $
@@ -286,7 +286,7 @@ addProvisionalForm = do -- Form for adding provisional voters
           H.li $ H.a ! A.href "/" $ "Return"
 
 alreadyVoted name address vid = 
-  render . pageHtml . starPageWithContents (name <> " has already voted!") $ do
+  render . pageHtml . starPageWithContents (name <> " has already checked in!") $ do
     "Name: " <> H.toHtml name
     H.br
     "Address:" <> H.pre (H.toHtml address)
