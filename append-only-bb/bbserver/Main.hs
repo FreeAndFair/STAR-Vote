@@ -247,6 +247,7 @@ main = do dbfile <- getDataFileName "bb.sqlite"
           conn <- connectSqlite3 dbfile
           g <- fmap cprgCreate createEntropyPool :: IO SystemRNG
           let initialState = BBState g conn
-          simpleHttpServe (setPort 8000 defaultConfig :: Config BB ()) $
+          serverConfig <- commandLineConfig mempty :: IO (Config BB ())
+          simpleHttpServe serverConfig $
             evalStateT (server jsdir) initialState
 
