@@ -208,11 +208,19 @@ main = do
   update st (Reseed seed)
   statefulErrorServe controller st
 
+extractStyle :: Text -> Text
+extractStyle barcode = maybe barcode id . msum $ map getCode parts
+
+  where parts = T.splitOn ";" barcode
+        getCode part | T.isPrefixOf "B=" part = Just (T.drop 2 part)
+                     | otherwise              = Nothing
+
+
 controller :: (MonadError Text m, MonadAcidState ControllerState m, MonadSnap m) => m ()
 controller = route $
   [ ("generateCode",
      method POST
-      (do styleID <- decodeParam rqPostParams "style"
+      (do styleID <- extractStyle <$> decodeParam rqPostParams "style"
           code    <- doUpdate GenerateCode
           case code of
             Left err -> throwError err
