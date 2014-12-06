@@ -27,6 +27,7 @@ import Data.Char
 import Data.List (isSuffixOf)
 import Data.List.Split
 import Data.Maybe
+import Data.Text.Encoding (decodeUtf8)
 import Data.SafeCopy
 import Network.HTTP.Client hiding (method)
 import Network.HTTP.Client.TLS
@@ -208,11 +209,19 @@ main = do
   update st (Reseed seed)
   statefulErrorServe controller st
 
+extractStyle :: Text -> Text
+extractStyle barcode = maybe barcode id . msum $ map getCode parts
+
+  where parts = T.splitOn ";" barcode
+        getCode part | T.isPrefixOf "B=" part = Just (T.drop 2 part)
+                     | otherwise              = Nothing
+
+
 controller :: (MonadError Text m, MonadAcidState ControllerState m, MonadSnap m) => m ()
 controller = route $
   [ ("generateCode",
      method POST
-      (do styleID <- decodeParam rqPostParams "style"
+      (do styleID <- extractStyle <$> decodeParam rqPostParams "style"
           code    <- doUpdate GenerateCode
           case code of
             Left err -> throwError err
@@ -232,7 +241,8 @@ controller = route $
     )
   , ("cast",
      method POST $
-       do castingID <- BallotCastingId <$> readBodyParam "bcid"
+       do castingID <- maybe (error "Required param 'bcid' not present")
+                             (BallotCastingId . decodeUtf8) <$> getPostParam "bcid"
           res <- doUpdate $ SetUnknownBallotTo Cast castingID
           case res of
             Left err -> throwError err
@@ -240,7 +250,8 @@ controller = route $
     )
   , ("spoil",
      method POST $
-       do castingID <- BallotCastingId <$> readBodyParam "bcid"
+       do castingID <- maybe (error "Required param 'bcid' not present")
+                             (BallotCastingId . decodeUtf8) <$> getPostParam "bcid"
           res <- doUpdate $ SetUnknownBallotTo Spoiled castingID
           case res of
             Left err -> throwError err

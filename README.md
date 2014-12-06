@@ -50,17 +50,17 @@ Summary:
 
 Summary:
 
-    $ bbserver
+    $ bbserver -b :: -p 8000
     B localhost:8000/reset
-    $ star-keygen -p 8001
+    $ star-keygen -b :: -p 8001
     B localhost:8001/register.html
     B localhost:8001/initialize.html
     $ nano star-terminal/start.sh
-    $ star-voter-db -p 8002
+    $ star-voter-db -b :: -p 8002
     $ curl -X POST localhost:8002/initialize \
         -d voterids='[(3,Voter {_voterName="John Doe", _voterAddress = "Nowhereland"}),(5,Voter {_voterName = "Jane Doe", _voterAddress = "Stix"})]' \
         -d voterstatus='[(3,5,"oregon-2014"),(5,6,"oregon-2014")]'
-    $ star-controller -p 8003
+    $ star-controller -b :: -p 8003
     $ star-terminal/start.sh
 
 1.  Start the append-only bulletin board on port 8000 by running `bbserver`.
@@ -74,16 +74,16 @@ Summary:
     should work fine with these instructions.
 
     In a real election, each election official would need to keep a copy of
-    their share as reported by `initialize.html`.
 
     The public key should be made available to the voting terminals for
     encryption. Edit the file `star-terminal/start.sh` with your favorite
     editor and modify the `STAR_PUBLIC_KEY` environment variable to contain the
     base64-encoded public key displayed by `initialize.html`.
 
-3.  Initialize the voter status database. Run `star-voter-db -p 8002` to start
-    the server on port 8002. You will then need to tell the database about all
-    your voters. Below is a sample with some synthetic data:
+3.  Initialize the voter status database. Run `star-voter-db -b :: -p 8002`
+    to start the server on port 8002. You will then need to tell the
+    database about all your voters. Below is a sample with some
+    synthetic data:
 
         curl -X POST localhost:8002/initialize \
             -d voterids='[(3,Voter {_voterName="John Doe", _voterAddress = "Nowhereland"}),(5,Voter {_voterName = "Jane Doe", _voterAddress = "Stix"})]' \
@@ -95,7 +95,7 @@ Summary:
     here puts John Doe in precinct 5 and Jane Doe in precinct 6, both with the
     `oregon-2014` ballot style. Currently `oregon-2014` is the only supported
     ballot style (see `star-util/src/Application/Star/Util.hs`).
-4.  Start the controller on port 8003 with `star-controller -p 8003`.
+4.  Start the controller on port 8003 with `star-controller -b :: -p 8003`.
 5.  Start at least one voting terminal. For a default configuration, run
     `star-terminal/start.sh`, which will start a server on port 8004. You can
     also run `star-terminal/start.sh 8005` and similar to start another
