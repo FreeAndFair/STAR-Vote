@@ -13,26 +13,25 @@
 module Main where
 
 import Application.Star.CommonImports
+import Application.Star.Instances ()
 import Application.Star.Util hiding (method)
 import Control.Exception
 import Control.Monad.CryptoRandom
+import Crypto.Hash.CryptoAPI
 import Crypto.PubKey.ECC.ECDSA
 import "crypto-random" Crypto.Random
 import Crypto.Random.DRBG
-import Crypto.Hash.CryptoAPI
 import Crypto.Types.PubKey.ECC
 import Data.Acid
 import Data.Aeson
 import Data.Aeson.TH
 import Data.Array (assocs)
-import Data.Byteable
-import Data.ByteString.Lazy (toChunks)
 import Data.SafeCopy
 import Data.String
 import Data.Text (Text)
 import Data.Time.Clock
 import Data.Typeable
-import Paths_star_crypto
+import Paths_star_keygen
 import StarVote.Crypto.Groups
 import StarVote.Crypto.ThresholdElGamal
 import StarVote.Crypto.Types
@@ -44,9 +43,11 @@ import qualified BB.DB as BB
 import qualified BB.Protocol as BB
 import qualified Data.Acid.Advanced as Acid
 import qualified Data.Binary as Binary
-import qualified Data.Binary.Put as Binary
+import qualified Data.ByteString.Lazy as BS
 import qualified Data.ByteString.Lazy.UTF8 as UTF8
+import qualified Data.ByteString.Base64.Lazy as B64
 import qualified Data.Text as Text
+import qualified Data.Text.Encoding as Text
 import qualified Network.HTTP as HTTP
 import qualified Text.Blaze.Html4.Strict as Tag
 import qualified Text.Blaze.Html4.Strict.Attributes as Attr
@@ -73,7 +74,7 @@ main = do
   -- loading from the acid-state database failed, since this probably uses up
   -- real entropy.
   -- see https://github.com/acid-state/acid-state/issues/47
-  seed      <- newGenIO :: IO HmacDRBG
+  seed      <- newGenIO
   stateFile <- getDataFileName "key-generation"
   bbKeyFile <- getDataFileName "bb-public-key"
   state     <- openLocalStateFrom stateFile seed
@@ -120,20 +121,21 @@ generateShares bbKey = do
         , tegTrustees  = n
         , tegThreshold = t
         }
-  (TEGPublicKey _ public, TEGPrivateKey _ private) <- errorUpdate (BuildKeyPairTEG params)
-  shares <- errorUpdate (BuildShares params private)
+  (public, TEGPrivateKey _ private) <- errorUpdateShow (BuildKeyPairTEG params)
+  shares <- errorUpdateShow (BuildShares params private)
   publishKey bbKey public shares
 
 republish bbKey = do
   public <- readBodyParam "public"
   shares <- readBodyParam "shares"
-  publishKey bbKey public (Shares shares)
+  publishKey bbKey (public :: PublicKey) (Shares shares)
 
 publishKey bbKey public (Shares shares) = do
-  bbResult <- postpone . post bbKey . fromString $ "public key " <> show (public :: Integer)
+  let encPub = B64.encode . Binary.encode $ public
+  bbResult <- postpone . post bbKey $ "public key " <> (Text.decodeUtf8 . mconcat . BS.toChunks) encPub
   page "Shares" $ do
     table $ do
-      entry "public key" public
+      entry "public key" encPub
       forM_ (assocs shares) $ \(i, e) ->
         entry ("private key share " <> fromString (show i)) e
     case bbResult of
@@ -175,8 +177,6 @@ question id defaultValue description = do
 page title content = render $ docTypeHtml ! lang "en" $ do
   Tag.title title
   content
-
-errorUpdate v = doUpdate v >>= either (throwError . fromString . show) return
 
 postpone :: MonadError e m => m a -> m (Either e a)
 postpone act = catchError (Right `liftM` act) (return . Left)
@@ -255,53 +255,16 @@ liftId :: MonadError Text m => Either Text a -> m a
 liftId = liftEither Prelude.id
 
 -- don't look, it's too boring {{{
--- state modifications during failing transactions are not preserved
-transaction :: e ~ GenError => CRand HmacDRBG e a -> Update HmacDRBG (Either e a)
-transaction m = do
-  result <- gets (runCRand m)
-  case result of
-    Left e -> return (Left e)
-    Right (a, g) -> put g >> return (Right a)
-
 data BuildKeyPairTEG = BuildKeyPairTEG TEGParams
 data BuildShares     = BuildShares     TEGParams Integer
 data PrepareMessage  = PrepareMessage PrivateKey BB.Message UTCTime BB.Author BB.Hash
 data BuildKeyPairECC = BuildKeyPairECC Curve
 
-deriving instance Typeable SHA512
-deriving instance Typeable BB.Message
-deriving instance Typeable BB.NewMessage
-deriving instance Typeable BB.Author
 join <$> mapM (deriveSafeCopy 0 'base)
-  [ ''HMAC.State, ''SHA512, ''GenError
-  , ''BuildKeyPairTEG, ''BuildShares, ''PrepareMessage, ''BuildKeyPairECC
+  [ ''BuildKeyPairTEG, ''BuildShares, ''PrepareMessage, ''BuildKeyPairECC
   , ''PossibleKey
   , ''TEGParams, ''TEGPublicKey, ''TEGPrivateKey, ''Shares
-  , ''PublicKey, ''PrivateKey, ''Signature
-  , ''BB.Message, ''BB.Author, ''BB.NewMessage, ''BB.Signed
-  , ''Point, ''Curve, ''CurveBinary, ''CurveCommon, ''CurvePrime
   ]
-
-instance Byteable Point where
-  toBytes PointO = "\0"
-  toBytes (Point a b) = "\1" <> strictPut (a, b)
-
-instance Byteable PublicKey where
-  toBytes (PublicKey curve q) = toBytes (curve, q)
-
-instance Byteable Curve where
-  toBytes (CurveF2m binary) = "\0" <> toBytes binary
-  toBytes (CurveFP  prime ) = "\1" <> toBytes prime
-
-instance Byteable CurveBinary where toBytes (CurveBinary n c) = toBytes (n, c)
-instance Byteable CurvePrime  where toBytes (CurvePrime  n c) = toBytes (n, c)
-instance Byteable CurveCommon where
-  toBytes (CurveCommon a b g n h) = mconcat [toBytes a, toBytes b, toBytes g, toBytes n, toBytes h]
-
-instance Byteable Integer where toBytes = strictPut
-
-strictPut :: Binary.Binary a => a -> ByteString
-strictPut = mconcat . toChunks . Binary.runPut . Binary.put
 
 instance UpdateEvent BuildKeyPairTEG
 instance Acid.Method BuildKeyPairTEG where
@@ -324,8 +287,8 @@ instance Acid.Method BuildKeyPairECC where
   type MethodState  BuildKeyPairECC = HmacDRBG
 
 instance (d ~ SHA512) => IsAcidic (HMAC.State d) where
-  acidEvents = [ Acid.UpdateEvent $ \(BuildKeyPairTEG params       ) -> transaction (buildKeyPair params)
-               , Acid.UpdateEvent $ \(BuildShares     params secret) -> transaction (buildShares params secret)
+  acidEvents = [ Acid.UpdateEvent $ \(BuildKeyPairTEG params       ) -> randTrans Prelude.id (buildKeyPair params)
+               , Acid.UpdateEvent $ \(BuildShares     params secret) -> randTrans Prelude.id (buildShares params secret)
                , Acid.UpdateEvent $ \(PrepareMessage k msg tw w h  ) -> state (\g -> BB.prepareMessage g k msg tw w h)
                , Acid.UpdateEvent $ \(BuildKeyPairECC curve        ) -> state (\g -> ECC.generate g curve)
                ]

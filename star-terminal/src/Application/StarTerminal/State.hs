@@ -36,10 +36,11 @@ module Application.StarTerminal.State (
   TerminalState(TerminalState), recordedVotes, ballotCodes, terminal,
   -- * AcidState actions for working with saved TerminalStates
   GetReceipt(..), GetRegisterURL(..), GetTerminalConfig(..), InsertCode(..),
-  LookupBallotStyle(..), RecordVote(..), SaveReceipt(..)
+  LookupBallotStyle(..), RecordVote(..), SaveReceipt(..), EncryptRecord(..)
   ) where
 
 import           Control.Lens
+import           Crypto.Random.DRBG             (HmacDRBG)
 
 import           Data.Acid                      (Query, Update, makeAcidic)
 import qualified Data.ByteString.Lazy           as LB
@@ -52,7 +53,9 @@ import           Data.Typeable
 import           Application.Star.Ballot
 import           Application.Star.BallotStyle
 import           Application.Star.CommonImports
-import           Application.Star.HashChain
+import           Application.Star.HashChain     hiding (encryptRecord)
+import qualified Application.Star.HashChain     as Util
+import           Application.Star.Instances     ()
 import           Application.Star.Util
 
 type StarTerm m = (MonadError T.Text m, MonadAcidState TerminalState m, MonadSnap m)
@@ -70,6 +73,7 @@ data TerminalState = TerminalState
   , _ballotCodes   :: Map BallotCode BallotStyle
   , _terminal      :: Terminal
   , _receiptInfo   :: Map BallotId (Ballot, BallotStyle, EncryptedRecord, UTCTime)
+  , _seed          :: HmacDRBG
   }
 
 
@@ -113,6 +117,8 @@ getTerminalConfig = view terminal <$> ask
 getRegisterURL :: Query TerminalState String
 getRegisterURL = view registerURL <$> getTerminalConfig
 
+encryptRecord k m bid bcid zp zi ballot = randTrans seed (Util.encryptRecord k m bid bcid zp zi ballot)
+
 $(makeAcidic ''TerminalState [ 'getReceipt 
                              , 'getRegisterURL
                              , 'getTerminalConfig
@@ -120,5 +126,6 @@ $(makeAcidic ''TerminalState [ 'getReceipt
                              , 'lookupBallotStyle
                              , 'recordVote
                              , 'saveReceipt
+                             , 'encryptRecord
                              ])
 

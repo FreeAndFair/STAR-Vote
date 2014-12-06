@@ -22,6 +22,8 @@ module Application.Star.HashChain
   , encryptRaces
   , encryptRace
   , encryptRecord
+  , decrypt
+  , hash
   , internalHash
   , publicHash
   -- * Hash chain lenses
@@ -34,11 +36,14 @@ module Application.Star.HashChain
   ) where
 
 import           Control.Lens
+import           Control.Monad
+import           Control.Monad.CryptoRandom
 
 import           Data.Aeson (FromJSON, ToJSON)
 import           Data.Aeson.TH (defaultOptions, deriveJSON)
 import           Data.Binary (Binary)
 import qualified Data.Binary as B
+import           Data.Binary.Get (ByteOffset)
 import           Data.ByteString.Lazy (ByteString)
 import qualified Data.ByteString.Lazy as BS
 import           Data.Digest.Pure.SHA (bytestringDigest, sha256)
@@ -49,12 +54,21 @@ import           Data.Typeable
 
 import           Application.Star.Ballot
 import           Application.Star.SerializableBS
+import           StarVote.Crypto.Types
+import           StarVote.Crypto.ThresholdElGamal
+
+type PublicKey  = TEGPublicKey
+type PrivateKey = TEGPrivateKey
+type CipherText = TEGCipherText
+deriveSafeCopy 0 'base ''TEGCipherText
+deriveSafeCopy 0 'base ''TEGPublicKey
+deriveSafeCopy 0 'base ''TEGParams
 
 newtype TerminalId = TerminalId SerializableBS
   deriving (Binary, FromJSON, ToJSON)
 $(deriveSafeCopy 0 'base ''TerminalId)
 
-newtype Encrypted a = Encrypted SerializableBS
+newtype Encrypted a = Encrypted CipherText
   deriving (Binary, FromJSON, ToJSON)
 $(deriveSafeCopy 0 'base ''Encrypted)
 
@@ -93,7 +107,8 @@ $(deriveSafeCopy 0 'base ''EncryptedRecord)
 $(makeLenses ''EncryptedRecord)
 
 
-encryptRecord :: PublicKey   -- ^ public key issued by election authority; used to encrypt vote
+encryptRecord :: MonadCRandomR e m
+              => PublicKey   -- ^ public key issued by election authority; used to encrypt vote
               -> TerminalId  -- ^ unique ID of the terminal used to produce ballot
               -> BallotId    -- ^ unique, unpredictable ID for the given ballot
               -- ^ ID used to associate paper ballot with electronic record when
@@ -102,36 +117,39 @@ encryptRecord :: PublicKey   -- ^ public key issued by election authority; used 
               -> PublicHash
               -> InternalHash
               -> Ballot
-              -> EncryptedRecord
-encryptRecord k m bid bcid zp' zi' ballot = EncryptedRecord
-  { _bcid = bcid
-  , _cv   = cv
-  , _pv   = pv
-  , _cbid = cbid
-  , _m    = m
-  , _zp   = publicHash bcid extCv pv m zp'
-  , _zi   = internalHash bcid cv pv cbid m zi'
-  }
+              -> m EncryptedRecord
+encryptRecord k m bid bcid zp' zi' ballot = do
+  (cv, pv) <- encryptBallot k ballot
+  cbid     <- encryptRaces  k bid (races ballot)
+  return EncryptedRecord
+    { _bcid = bcid
+    , _cv   = cv
+    , _pv   = pv
+    , _cbid = cbid
+    , _m    = m
+    , _zp   = publicHash bcid extCv pv m zp'
+    , _zi   = internalHash bcid cv pv cbid m zi'
+    }
   where
-    (cv, pv) = encryptBallot k ballot
-    cbid     = encryptRaces k bid (races ballot)
     extCv = Ext mempty  -- TODO
 
-encryptBallot :: PublicKey
+encryptBallot :: MonadCRandomR e m
+              => PublicKey
               -> Ballot
-              -> (Encrypted Ballot, Proof Ballot)
-encryptBallot k b = (Encrypted (SB (encrypt k b)), proof)
+              -> m (Encrypted Ballot, Proof Ballot)
+encryptBallot k b = encrypt k b >>= \e -> return (Encrypted e, proof)
   where
     proof = Proof mempty -- TODO: not an actual proof
 
-encryptRaces :: PublicKey -> BallotId -> [RaceSelection] -> [Encrypted (BallotId, RaceSelection)]
-encryptRaces k bid = map (encryptRace k bid)
+encryptRaces :: MonadCRandomR e m => PublicKey -> BallotId -> [RaceSelection] -> m [Encrypted (BallotId, RaceSelection)]
+encryptRaces k bid = mapM (encryptRace k bid)
 
-encryptRace :: PublicKey
+encryptRace :: MonadCRandomR e m
+            => PublicKey
             -> BallotId
             -> RaceSelection
-            -> Encrypted (BallotId, RaceSelection)
-encryptRace k bid r = Encrypted $ SB $ encrypt k (bid, r)
+            -> m (Encrypted (BallotId, RaceSelection))
+encryptRace k bid r = liftM Encrypted (encrypt k (bid, r))
 
 publicHash :: BallotCastingId
            -> Ext (Encrypted Ballot)
@@ -152,18 +170,29 @@ internalHash :: BallotCastingId
 internalHash bcid cv pv cbid m zi' =
   InternalHash $ hash (bcid <||> cv <||> pv <||> cbid <||> m <||> zi')
 
-type PublicKey  = ByteString
-type PrivateKey = ByteString
+-- TODO: go low-level enough that encodeToInteger/decodeFromInteger are
+-- efficient (i.e. just copy bytes instead of doing arithmetic)
+encodeToInteger :: Binary a => a -> Integer
+encodeToInteger = foldl' (\num digit -> num*256 + toInteger digit) 255 . BS.unpack . B.encode
+
+decodeFromInteger :: Binary a => Integer -> Either String a
+decodeFromInteger n = do
+  255:bytes <- return . reverse . digitsOf $ n
+  case B.decodeOrFail (BS.pack bytes) of
+    Left (_, bo, err) -> Left (err ++ " at position " ++ show bo)
+    Right (bs, bo, a) | BS.null bs -> return a
+                      | otherwise  -> Left "Not all of the input was used during parsing."
+  where
+  digitsOf n | n <= 0 = []
+             | otherwise = let (q, r) = n `quotRem` 256 in fromInteger r : digitsOf q
 
 -- | This is a placeholder - it does not actually implement a strong encryption
 -- scheme.
-encrypt :: Binary a => PublicKey -> a -> ByteString
-encrypt _ = id . B.encode  -- TODO: Worst. Encryption. Ever.
+encrypt :: (MonadCRandomR e m, Binary a) => PublicKey -> a -> m CipherText
+encrypt k = encryptAsym k . encodeToInteger
 
--- | This is a placeholder - it does not actually implement a strong encryption
--- scheme.
-decrypt :: PrivateKey -> ByteString -> ByteString
-decrypt _ = id
+decrypt :: Binary a => PrivateKey -> CipherText -> Either String a
+decrypt k = decodeFromInteger . decryptAsym k
 
 hash :: Binary a => a -> SerializableBS
 hash = SB . bytestringDigest . sha256 . B.encode

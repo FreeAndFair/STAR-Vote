@@ -4,10 +4,13 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
 {-# LANGUAGE OverloadedStrings          #-}
+{-# LANGUAGE Rank2Types                 #-}
+{-# LANGUAGE TypeFamilies               #-}
 {-# LANGUAGE UndecidableInstances       #-}
 module Application.Star.Util (
   -- * AcidState helpers
   MonadAcidState, doQuery, doUpdate,
+  errorUpdate, errorUpdateShow, randTrans,
   -- * HTTP and HTML helpers
   errorResponse, writeShow, method,
   statefulErrorServe, statefulErrorServeDef,
@@ -22,11 +25,13 @@ module Application.Star.Util (
 import           Control.Applicative
 import           Control.Lens
 import           Control.Monad.CatchIO
+import           Control.Monad.CryptoRandom
 import           Control.Monad.Except
 import           Control.Monad.State
 import           Data.Acid                     (AcidState, EventResult,
                                                 EventState, QueryEvent,
-                                                UpdateEvent, query, update)
+                                                UpdateEvent, Update,
+                                                query, update)
 import           Data.Aeson
 import           Data.ByteString               (ByteString)
 import           Data.CaseInsensitive          (mk)
@@ -62,6 +67,24 @@ doUpdate e = do st <- get
                 res <- liftIO (update st e)
                 put st
                 return res
+
+errorUpdate :: (MonadIO m, MonadAcidState (EventState event) m, UpdateEvent event, EventResult event ~ Either e a, MonadError e' m)
+            => (e -> e')
+            -> event
+            -> m a
+errorUpdate f v = doUpdate v >>= either (throwError . f) return
+
+errorUpdateShow :: (MonadIO m, MonadAcidState (EventState event) m, UpdateEvent event, EventResult event ~ Either e a, Show e, MonadError Text m)
+                => event -> m a
+errorUpdateShow = errorUpdate (T.pack . show)
+
+-- state modifications during failing transactions are not preserved
+randTrans :: e ~ GenError => Lens s s g g -> CRand g e a -> Update s (Either e a)
+randTrans l action = do
+  seed <- gets (view l)
+  case runCRand action seed of
+    Left e -> return (Left e)
+    Right (a, seed') -> modify (set l seed') >> return (Right a)
 
 errorResponse :: MonadSnap m => Text -> m ()
 errorResponse err = modifyResponse (setResponseCode 400) >> writeText err

@@ -85,7 +85,7 @@ import           Application.Star.BallotStyle
 import qualified Application.Star.BallotStyle          as BS
 import           Application.Star.HashChain
 import           Application.Star.Util                 (MonadAcidState, doQuery,
-                                                        doUpdate,
+                                                        doUpdate, errorUpdateShow,
                                                         getBallotStyles, render)
 import           Application.StarTerminal.LinkHelper
 import           Application.StarTerminal.Localization
@@ -161,7 +161,8 @@ finalize = do
   ballotId        <- BallotId        . pack . UUID.toString <$> liftIO randomIO
   ballotCastingId <- BallotCastingId . pack . UUID.toString <$> liftIO randomIO
   term            <- doQuery GetTerminalConfig
-  let record = encryptRecord (view pubkey term)
+  record          <- errorUpdateShow $ EncryptRecord
+                             (view pubkey term)
                              (view tId term)
                              ballotId
                              ballotCastingId

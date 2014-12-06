@@ -30,8 +30,10 @@ Library
     cassava,
     containers,
     lens               >= 4.4    && < 4.6,
+    monadcryptorandom  >= 0.6    && < 0.7,
     random             >= 1      && < 2,
     safecopy           >= 0.8.3  && < 0.9,
+    star-crypto        >= 0.1    && < 0.2,
     SHA,
     text,
     vector

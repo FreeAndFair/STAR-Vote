@@ -3,7 +3,7 @@
 # How to run an election
 
 In the summaries below, prefix `#` means "run as root"; `$` means "run as
-user"; and `B` means visit this location in a browser.
+user"; and `B` means "visit this location in a browser".
 
 ## Building and installing
 
@@ -14,7 +14,7 @@ Summary:
     $ cd e2eviv/src
     $ cabal update
     $ cabal sandbox init
-    $ cabal install -j ./append-only-bb ./star-{controller,crypto,terminal,types,util,voter-db}
+    $ cabal install -j ./append-only-bb ./star-{controller,crypto,keygen,terminal,types,util,voter-db}
 
 1.  Install GHC, cabal-install, llvm 3.4, and sqlite. Often this is as
     simple as `apt-get install ghc cabal-install llvm libsqlite3-dev`
@@ -52,9 +52,10 @@ Summary:
 
     $ bbserver
     B localhost:8000/reset
-    $ star-crypto -p 8001
+    $ star-keygen -p 8001
     B localhost:8001/register.html
     B localhost:8001/initialize.html
+    $ nano star-terminal/start.sh
     $ star-voter-db -p 8002
     $ curl -X POST localhost:8002/initialize \
         -d voterids='[(3,Voter {_voterName="John Doe", _voterAddress = "Nowhereland"}),(5,Voter {_voterName = "Jane Doe", _voterAddress = "Stix"})]' \
@@ -65,7 +66,7 @@ Summary:
 1.  Start the append-only bulletin board on port 8000 by running `bbserver`.
     Initialize it by visiting `localhost:8000/reset` and deleting everything.
 2.  The election officials should generate an encryption public key, together
-    with shares of the private key for each official. Run `star-crypto -p 8001`
+    with shares of the private key for each official. Run `star-keygen -p 8001`
     to start a server on port 8001, then visit `localhost:8001/register.html`
     and `localhost:8001/initialize.html` (in that order). The server should
     print a short message on its first running telling where to find the
@@ -74,6 +75,12 @@ Summary:
 
     In a real election, each election official would need to keep a copy of
     their share as reported by `initialize.html`.
+
+    The public key should be made available to the voting terminals for
+    encryption. Edit the file `star-terminal/start.sh` with your favorite
+    editor and modify the `STAR_PUBLIC_KEY` environment variable to contain the
+    base64-encoded public key displayed by `initialize.html`.
+
 3.  Initialize the voter status database. Run `star-voter-db -p 8002` to start
     the server on port 8002. You will then need to tell the database about all
     your voters. Below is a sample with some synthetic data:

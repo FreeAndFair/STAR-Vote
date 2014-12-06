@@ -13,8 +13,10 @@ module Main
 
 import           Control.Applicative
 import           Control.Monad                       (void)
+import           Crypto.Random                       (newGenIO)
 import           Data.Acid                           (openLocalStateFrom, query)
-import qualified Data.ByteString.Base16.Lazy         as B16
+import qualified Data.Binary                         as Binary
+import qualified Data.ByteString.Base64.Lazy         as B64
 import           Data.ByteString.Lazy                (ByteString)
 import qualified Data.ByteString.Lazy                as BS
 import qualified Data.ByteString.Lazy.Char8          as Char8
@@ -22,6 +24,7 @@ import           Data.Default                        (def)
 import           Data.Int                            (Int64)
 import qualified Data.Map                            as M
 import           Data.Monoid
+import           Data.String
 import           Data.Text.Lazy                      (pack, unpack)
 import           Data.Text.Lazy.Encoding             (decodeUtf8, encodeUtf8)
 import           Network.HTTP.Client                 (Request, RequestBody (..),
@@ -68,9 +71,10 @@ main = do
   z0      <- fromSB       . decode 32 <$> getEnv "STAR_PUBLIC_SALT"
   voteURL <-                              getEnv "STAR_POST_VOTE_URL"
   regURL  <-                              getEnv "STAR_REGISTER_URL"
+  seed    <- newGenIO
 
   let term = Terminal tId pubkey zp zi z0 voteURL regURL
-      defaultState = TerminalState def def term M.empty
+      defaultState = TerminalState def def term M.empty seed
 
   stateFile <- getDataFileName ("terminalState" ++ tIdStr)
   putStrLn $ "The state file is " ++ stateFile ++ ". Delete it to reconfigure the terminal."
@@ -125,5 +129,5 @@ decode n s = if BS.length bs == n then SB bs else
   where
     bs = decode' s
 
-decode' :: String -> ByteString
-decode' = fst . B16.decode . encodeUtf8 . pack
+decode' :: Binary.Binary a => String -> a
+decode' = Binary.decode . B64.decodeLenient . fromString
