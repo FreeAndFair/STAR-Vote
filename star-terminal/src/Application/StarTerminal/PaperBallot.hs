@@ -77,8 +77,7 @@ receiptPageContents term t hashView = do
 -- | All of the details about a race selection that are necessary for
 -- the printed ballot
 data ElaboratedSelection = ElaboratedSelection
-  { _esSig    :: Encrypted (BallotId, RaceSelection)
-  , _esRace   :: Race
+  { _esRace   :: Race
   , _esOption :: Option
   } deriving Typeable
 $(makeLenses ''ElaboratedSelection)
@@ -93,41 +92,30 @@ data ElaboratedBallot = ElaboratedBallot
   } deriving Typeable
 $(makeLenses ''ElaboratedBallot)
 
-elabBallot :: MonadCRandomR e m => PublicKey -> Ballot -> BallotId -> BallotStyle -> EncryptedRecord -> UTCTime -> m ElaboratedBallot
-elabBallot pk ballot bid bs enc t =
-  ElaboratedBallot bid (view bcid enc) t (view zp enc) `liftM` sequence
-    [ (\e -> ElaboratedSelection e r opt) `liftM` encryptRace pk bid rs
+
+-- | Construct an "elaborated ballot". In other words, we gather
+-- together all of the information that will be displayed on the paper
+-- ballot.
+elabBallot :: Ballot -> BallotId -> BallotStyle -> EncryptedRecord -> UTCTime -> ElaboratedBallot
+elabBallot ballot bid bs enc t =
+  ElaboratedBallot bid (view bcid enc) t (view zp enc)
+    [ ElaboratedSelection r opt
     | rs@(RaceSelection (k, sel)) <- races ballot
     , let Just (_, rid) = fromKey k
     , let Just r = bRace rid bs
     , let Just opt = option sel r
     ]
 
-data ElabBallot = ElabBallot PublicKey Ballot BallotId BallotStyle EncryptedRecord UTCTime
-  deriving Typeable
-deriveSafeCopy 0 'base ''ElabBallot
-deriveSafeCopy 0 'base ''ElaboratedBallot
-deriveSafeCopy 0 'base ''ElaboratedSelection
-instance UpdateEvent ElabBallot
-instance Method      ElabBallot where
-  type MethodResult ElabBallot = Either GenError ElaboratedBallot
-  type MethodState  ElabBallot = TerminalState
-
-
-
 -- | Draw barcodes and text for a single ballot selection - this is a
 -- component of c_bid. Returns the lower-right coordinates.
 drawSelection :: ElaboratedSelection -> Point -> Draw Point
-drawSelection (ElaboratedSelection sig race opt) start@(x :+ y) = do
+drawSelection (ElaboratedSelection race opt) start@(x :+ y) = do
     displayFormattedText
-        (Rectangle (start - (0 :+ 2*textHeight)) (start + (400 :+ 0)))
+        (Rectangle (start - (0 :+ textHeight)) (start + (400 :+ 0)))
         NormalParagraph ballotIdStyle $ do
      paragraph . txt $ "Race: " ++ T.unpack (view rDescription race)
-     paragraph . txt $ "Encrypted vote: " ++ sigString
-    fromRight $ drawBarcode barcodeConfig sigString (start - (0 :+ 2*textHeight))
 
-
-    let start' = start - (0 :+ (1.5*textHeight + height barcodeConfig))
+    let start' = start - (0 :+ textHeight)
     corner <- fromRight $
                 drawBarcode barcodeConfig (T.unpack $ view oId opt)
                   (start' - (0 :+ textHeight))
@@ -135,35 +123,44 @@ drawSelection (ElaboratedSelection sig race opt) start@(x :+ y) = do
         (Rectangle (corner - (0 :+ textHeight)) (corner + (400 :+ 0)))
         NormalParagraph ballotIdStyle $ do
       paragraph . txt $ "Vote: " ++ T.unpack (view oName opt) ++ maybe "" ((++")") . (" ("++) . T.unpack) (view oParty opt)
-    return $ start + (0 :+ (0 - 3*textHeight - 2*height barcodeConfig))
+    return $ start + (0 :+ (0 - 1.2*textHeight - height barcodeConfig))
   where barcodeConfig = BarcodeConfig { height = 20, barWidth = 1.0 }
-        textHeight = 25
+        textHeight = 20
         fromRight (Right x) = x
-        Encrypted e = sig
-        sigString = BS.unpack . Base64.encode . fromSB . hash $ e
+
 
 -- | Draw the ballot ID at the top of the page
-drawBallotId :: BallotCastingId -> Draw ()
-drawBallotId (BallotCastingId bcid) = do
-  let barcodeStartCorner = (30 :+ (fromIntegral ballotHeight - 30 - (height ballotBarcodeConfig)))
-  (_ :+ y) <- case drawBarcode ballotBarcodeConfig (T.unpack bcid) barcodeStartCorner of
-               Left err -> fail (show err)
-               Right draw -> draw
-  let idTextRect = Rectangle (35                              :+ (y - height ballotBarcodeConfig - 15))
-                             ((fromIntegral ballotWidth - 30) :+ (y - height ballotBarcodeConfig - 5))
-  displayFormattedText idTextRect NormalParagraph ballotIdStyle $ do
-    paragraph . txt $ "Ballot ID: " <> T.unpack bcid
+drawBallotId :: BallotId -> BallotCastingId -> Draw ()
+drawBallotId (BallotId bid) (BallotCastingId bcid) = do
+  let barcodeStartCorner =
+        (30 :+ (fromIntegral ballotHeight - 30 - (height ballotBarcodeConfig)))
+  (_ :+ nextStart) <- drawId "Casting ID: " bcid barcodeStartCorner
+  drawId "Paper ID: " bid (30 :+ (nextStart - height ballotBarcodeConfig))
+  return ()
+
+  where
+    drawId label id startCorner = do
+      (_ :+ y) <-
+        case drawBarcode ballotBarcodeConfig (T.unpack bcid) startCorner of
+          Left err -> fail (show err)
+          Right draw -> draw
+      let idTextBottomLeft = (35 :+ (y - height ballotBarcodeConfig - 15))
+          idTextTopRight = ((fromIntegral ballotWidth - 30) :+ (y - height ballotBarcodeConfig - 5))
+          idTextRect = Rectangle idTextBottomLeft idTextTopRight
+      displayFormattedText idTextRect NormalParagraph ballotIdStyle $ do
+        paragraph . txt $ label <> T.unpack id
+      return idTextBottomLeft
 
 -- | Generate a paper ballot and voter reciept as a PDF
 paperBallot :: StarTerm m => Ballot -> BallotId -> BallotStyle -> EncryptedRecord -> Terminal -> UTCTime -> m ByteString
 paperBallot ballot bid style enc term t = do
-  elaboratedBallot <- errorUpdateShow $ ElabBallot (view pubkey term) ballot bid style enc t
-  let rect = PDFRect 0 0 ballotWidth ballotHeight
+  let elaboratedBallot = elabBallot ballot bid style enc t
+      rect = PDFRect 0 0 ballotWidth ballotHeight
   liftIO $ pdfByteString standardDocInfo { compressed = False } rect $ do
     ballotPage <- addPage Nothing
     void . drawWithPage ballotPage $ do
-      drawBallotId (view ebBcid elaboratedBallot)
-      foldrM drawSelection (20 :+ 550 ) (view ebSelections elaboratedBallot)
+      drawBallotId (view ebId elaboratedBallot) (view ebBcid elaboratedBallot)
+      foldrM drawSelection (20 :+ 500 ) (view ebSelections elaboratedBallot)
     receiptPage <- addPage Nothing
     drawWithPage receiptPage (receiptPageContents (view tId term) t hashView)
   where (PublicHash hash) = view zp enc

@@ -16,6 +16,7 @@ import           Control.Monad                       (void)
 import           Crypto.Random                       (newGenIO)
 import           Data.Acid                           (openLocalStateFrom, query)
 import qualified Data.Binary                         as Binary
+import qualified Data.ByteString.Base16.Lazy         as B16
 import qualified Data.ByteString.Base64.Lazy         as B64
 import           Data.ByteString.Lazy                (ByteString)
 import qualified Data.ByteString.Lazy                as BS
@@ -65,7 +66,7 @@ main = do
   tIdStr <- getEnv "STAR_TERMINAL_ID"
   let tId = TerminalId . SB . encodeUtf8 . pack  $  tIdStr
 
-  pubkey  <- decode'                  <$> getEnv "STAR_PUBLIC_KEY"
+  pubkey  <- decodeBinary'            <$> getEnv "STAR_PUBLIC_KEY"
   zp      <- PublicHash   . decode 32 <$> getEnv "STAR_INIT_PUBLIC_HASH"
   zi      <- InternalHash . decode 32 <$> getEnv "STAR_INIT_INTERNAL_HASH"
   z0      <- fromSB       . decode 32 <$> getEnv "STAR_PUBLIC_SALT"
@@ -129,5 +130,16 @@ decode n s = if BS.length bs == n then SB bs else
   where
     bs = decode' s
 
-decode' :: Binary.Binary a => String -> a
-decode' = Binary.decode . B64.decodeLenient . fromString
+decode' :: String -> ByteString
+decode' = fst . B16.decode . encodeUtf8 . pack
+
+decodeBinary :: Int64 -> String -> SerializableBS
+decodeBinary n s = if BS.length bs == n then SB bs else
+  error $ "Length of input should be " ++ show n ++ " bytes."
+  where
+    bs = decodeBinary' s
+
+decodeBinary' :: Binary.Binary a => String -> a
+decodeBinary' = trace "decod'ing something" . Binary.decode . B64.decodeLenient . fromString
+
+

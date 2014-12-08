@@ -131,7 +131,7 @@ readJSONBody = do
     Just v  -> return v
     Nothing -> throwError "error decoding JSON"
   where
-  maxRequestSize = 1048576
+    maxRequestSize = 1048576
 
 decodeParam :: (MonadError Text m, MonadSnap m) => (Request -> Params) -> ByteString -> m Text
 decodeParam extractParams name = do

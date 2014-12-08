@@ -230,7 +230,7 @@ ballotParams :: StarTerm m => m (BallotCode, BallotStyle, Ballot)
 ballotParams = do
   code    <- paramR "code"
   mBallot <- maybe pass getBallot code
-  mmStyle  <- traverse (doQuery . LookupBallotStyle) code
+  mmStyle <- traverse (doQuery . LookupBallotStyle) code
   maybe pass return (params code (join mmStyle) mBallot)
   where
     params = liftA3 (\x y z -> (x,y,z))
