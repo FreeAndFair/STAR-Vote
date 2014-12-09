@@ -74,6 +74,7 @@ Summary:
     should work fine with these instructions.
 
     In a real election, each election official would need to keep a copy of
+    their share as reported by `initialize.html`.
 
     The public key should be made available to the voting terminals for
     encryption. Edit the file `star-terminal/start.sh` with your favorite
