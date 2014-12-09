@@ -141,7 +141,7 @@ drawBallotId (BallotId bid) (BallotCastingId bcid) = do
   where
     drawId label id startCorner = do
       (_ :+ y) <-
-        case drawBarcode ballotBarcodeConfig (T.unpack bcid) startCorner of
+        case drawBarcode ballotBarcodeConfig (T.unpack id) startCorner of
           Left err -> fail (show err)
           Right draw -> draw
       let idTextBottomLeft = (35 :+ (y - height ballotBarcodeConfig - 15))
