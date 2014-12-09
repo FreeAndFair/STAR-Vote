@@ -140,6 +140,6 @@ decodeBinary n s = if BS.length bs == n then SB bs else
     bs = decodeBinary' s
 
 decodeBinary' :: Binary.Binary a => String -> a
-decodeBinary' = trace "decod'ing something" . Binary.decode . B64.decodeLenient . fromString
+decodeBinary' = Binary.decode . B64.decodeLenient . fromString
 
 
