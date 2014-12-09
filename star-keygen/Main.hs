@@ -128,7 +128,7 @@ generateShares bbKey = do
 republish bbKey = do
   public <- readBodyParam "public"
   shares <- readBodyParam "shares"
-  publishKey bbKey (public :: PublicKey) (Shares shares)
+  publishKey bbKey (public :: TEGPublicKey) (Shares shares)
 
 publishKey bbKey public (Shares shares) = do
   let encPub = B64.encode . Binary.encode $ public
