@@ -38,7 +38,7 @@ buildKeyPair params = do
   let p = tegOrder params
       g = tegGenerator params
       lb = 1
-      ub = p - 2
+      ub = p - 1
   privateExponent <- getCRandomR (lb, ub)
   let publicKey  = TEGPublicKey  params (powerMod g privateExponent p)
       privateKey = TEGPrivateKey params privateExponent
@@ -55,7 +55,7 @@ encryptAsym (TEGPublicKey params halfSecret) msg = do
   let p = tegOrder params
       g = tegGenerator params
       lb = 1
-      ub = p - 2
+      ub = p - 1
   privateExponent <- getCRandomR (lb, ub)
   let gamma = powerMod g privateExponent p
       delta = msg * (powerMod halfSecret privateExponent p)
