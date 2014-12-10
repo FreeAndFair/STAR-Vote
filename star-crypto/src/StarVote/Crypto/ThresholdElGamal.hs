@@ -73,7 +73,7 @@ decryptAsym pk c = mod (gamma' * delta) p
         p = tegOrder params
 
         g = tegGenerator params
-        gamma' = fromJust $ invertMod gamma p
+        gamma' = fromJust $ invertMod (powerMod gamma privateExponent p) p
 
 -- Shamir's (t, n) threshold scheme (Setup)
 -- [HAC 526] Mechanism 12.71.1
