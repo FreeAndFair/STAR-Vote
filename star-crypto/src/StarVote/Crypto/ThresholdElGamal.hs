@@ -8,9 +8,11 @@ module StarVote.Crypto.ThresholdElGamal where
 import Crypto.Classes
 import "crypto-random" Crypto.Random
 import Control.Monad
+import Control.Monad.Error
 import Control.Monad.CryptoRandom
 
 import Data.Array (listArray)
+import Data.Ix (inRange)
 import Data.Map as M hiding (map)
 import Data.Maybe (fromJust)
 import qualified Data.ByteString as B
@@ -56,10 +58,13 @@ encryptAsym (TEGPublicKey params halfSecret) msg = do
       g = tegGenerator params
       lb = 1
       ub = p - 1
+  unless (inRange (0,p-1) msg) (throwError tooMuchDataError)
   privateExponent <- getCRandomR (lb, ub)
   let gamma = powerMod g privateExponent p
       delta = msg * (powerMod halfSecret privateExponent p)
   return (TEGCipherText gamma delta)
+  where
+  tooMuchDataError = fromGenError . strMsg $ "Trying to encrypt a message bigger than the group's characteristic -- we just can't cram that much information in, sorry!"
 
 -- ElGamal public-key encryption (Decryption).
 -- [HAC 295] Algorithm 8.18.2
