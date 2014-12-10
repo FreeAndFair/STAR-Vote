@@ -25,7 +25,7 @@ import Crypto.Types.PubKey.ECC
 import Data.Acid
 import Data.Aeson
 import Data.Aeson.TH
-import Data.Array (assocs)
+import Data.Map (assocs)
 import Data.SafeCopy
 import Data.String
 import Data.Text (Text)
@@ -136,7 +136,7 @@ publishKey bbKey public (Shares shares) = do
   page "Shares" $ do
     table $ do
       entry "public key" encPub
-      forM_ (assocs shares) $ \(i, e) ->
+      forM_ (assocs shares) $ \e@(i, _) ->
         entry ("private key share " <> fromString (show i)) e
     case bbResult of
       Left err -> do

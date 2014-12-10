@@ -26,6 +26,7 @@ library
                        base >=4.7 && <4.8,
                        binary >=0.7 && <0.8,
                        bytestring >=0.10,
+                       containers >=0.5 && <0.6,
                        crypto-api >= 0.13,
                        crypto-random >= 0.0.8,
                        monadcryptorandom >= 0.6

@@ -10,7 +10,8 @@ import "crypto-random" Crypto.Random
 import Control.Monad
 import Control.Monad.CryptoRandom
 
-import Data.Array as A
+import Data.Array (listArray)
+import Data.Map as M hiding (map)
 import Data.Maybe (fromJust)
 import qualified Data.ByteString as B
 
@@ -90,7 +91,7 @@ buildShares params secret = do
     ub = p - 1
   coeffs <- replicateM (fromIntegral (th - 1)) $ getCRandomR (lb, ub)
   let poly = Polynomial $ listArray (0, th-1) (secret:coeffs)
-  return . Shares $ listArray (1, n) $ map (evalPolyMod p poly) [1..n]
+  return . Shares $ fromAscList [(i, evalPolyMod p poly i) | i <- [1..n]]
 
 -- Shamir's (t, n) threshold scheme (Pooling)
 -- [HAC 526] Mechanism 12.71.2
@@ -98,15 +99,15 @@ recoverKeyFromShares
   :: TEGParams
   -> Shares
   -> Integer
-recoverKeyFromShares params (Shares shares) = sum $ map term (assocs shares)
+recoverKeyFromShares params (Shares shares) = (sum . map term . assocs) shares `mod` p
   where
     p = tegOrder params
+    a `div` b = case invertMod b p of
+      Just i -> a * i
+      _ -> error "attempting to recover key in non-prime order"
     term (i, s) = (lagrangeBasisAt i) * s `mod` p
-    lagrangeBasisAt i = product [ basisFactor
-                                | j <- [lb..ub],
-                                  i /= j,
-                                  let x_j = shares ! j
-                                      x_i = shares ! i
-                                      basisFactor = x_j `div` (x_j - x_i)
+                                -- NOTA BENE: `div` here is in the finite field Z/p
+    lagrangeBasisAt i = product [ j `div` (j - i)
+                                | j <- keys shares
+                                , i /= j
                                 ]
-    (lb, ub) = bounds shares

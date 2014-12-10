@@ -2,8 +2,10 @@
 module StarVote.Crypto.Types where
 
 import Data.Aeson.TH
-import Data.Array (Array)
+import Data.Array (Array, listArray)
 import Data.Binary
+import Data.List
+import Data.Map as M
 import Data.Typeable
 import GHC.Generics (Generic)
 
@@ -28,5 +30,7 @@ data TEGCipherText = TEGCipherText Integer Integer
 instance Binary TEGCipherText
 deriveJSON defaultOptions ''TEGCipherText
 
-data Shares = Shares (Array Integer Integer)
+newtype Shares = Shares (Map Integer Integer)
   deriving (Eq, Ord, Read, Show, Typeable)
+
+fromList = Shares . M.fromList
