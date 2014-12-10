@@ -22,18 +22,27 @@ import Control.Concurrent
 import Control.Lens
 import Data.Acid
 import Data.Aeson
+import qualified Data.Binary as Binary
+import qualified Data.ByteString.Lazy as BS
+import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Char8 as Char8
 import Data.Char
+import Data.Either
 import Data.List (isSuffixOf)
 import Data.List.Split
 import Data.Maybe
+import Data.String
 import Data.Text.Encoding (decodeUtf8)
 import Data.SafeCopy
 import Network.HTTP.Client hiding (method)
 import Network.HTTP.Client.TLS
+import StarVote.Crypto.Types as TEG
+import StarVote.Crypto.ThresholdElGamal
 import System.Environment
 import System.Random
 
+import qualified Data.Map as M
+import qualified Data.MultiSet as Bag
 import qualified Text.Blaze.Html5 as H
 import qualified Text.Blaze.Html5.Attributes as A
 
@@ -228,7 +237,7 @@ controller = route $
             Right c -> do broadcast c styleID
                           writeShow c) <|>
      method GET
-       (render . pageHtml . starPageWithContents "Vote!" $ do
+       (page "Vote!" $ do
           H.p "Scan your barcode here:"
           H.form ! A.method "POST" $ do
             H.input ! A.id "sticker" ! A.name "style" ! A.type_ "text"
@@ -269,8 +278,52 @@ controller = route $
           doUpdate (AddURL url)
     )
   -- TODO: provisional casting
+  , ("tally", method GET decryptionParametersForm <|>
+              method POST (do
+      params  <- readBodyParam "params"
+      shares  <- forM [1..tegThreshold params] (readBodyParam . shareName)
+      ballots <- doQuery ReadEntireBallotBox
+      tally params shares ballots
+      )
+    )
+  , ("poolShares", method POST $ do
+      encodedPublicKey <- getPostParam "public"
+      TEGPublicKey params _ <- case encodedPublicKey of
+        Nothing -> throwError "couldn't decode public key"
+        Just bs -> return . Binary.decode . BS.fromStrict . B64.decodeLenient $ bs
+      sharesForm params
+    )
   ]
 
+page :: MonadSnap m => Text -> H.Html -> m ()
+page title = render . pageHtml . starPageWithContents title
+
+decryptionParametersForm :: MonadSnap m => m ()
+decryptionParametersForm = page "Vote decryption, part 1/3" $ do
+  H.p "Enter the public key to begin."
+  H.form ! A.method "POST" ! A.action "poolShares" $ do
+    H.input ! A.name "public" ! A.type_ "text"
+    H.input ! A.type_ "submit"
+
+tally params shares ballotBox = page "Vote decryption, part 3/3" $ do
+  let ballots = [decryptRecord private er | (Cast, er) <- M.elems ballotBox]
+      private = TEGPrivateKey params (recoverKeyFromShares params (TEG.fromList shares))
+      (failures, successes) = partitionEithers ballots
+      summary = M.unionsWith Bag.union [Bag.singleton <$> b | Ballot b <- successes]
+  H.h2 "successfully decrypted votes"
+  H.p . fromString . show $ summary
+  when (not . null $ failures) $ do
+    H.h2 "WARNING! Some errors detected."
+    H.ul (mapM_ (H.li . fromString . show) failures)
+
+sharesForm params = page "Vote decryption, part 2/3" $ do
+  H.p "Each trustee should enter a share below."
+  H.form ! A.method "POST" ! A.action "tally" $ do
+    forM [1..tegThreshold params] $ \i -> H.input ! A.name (shareName i) ! A.type_ "text"
+    H.input ! A.name "params" ! A.type_ "hidden" ! (A.value . fromString . show) params
+    H.input ! A.type_ "submit" ! A.value "combine shares"
+
+shareName i = fromString ("share" <> show i)
 
 
 broadcast :: (MonadAcidState ControllerState m, MonadError Text m, MonadSnap m)

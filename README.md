@@ -73,13 +73,15 @@ Summary:
     configuration information used to contact the bulletin board; the defaults
     should work fine with these instructions.
 
-    In a real election, each election official would need to keep a copy of
-    their share as reported by `initialize.html`.
-
     The public key should be made available to the voting terminals for
     encryption. Edit the file `star-terminal/start.sh` with your favorite
     editor and modify the `STAR_PUBLIC_KEY` environment variable to contain the
     base64-encoded public key displayed by `initialize.html`.
+
+    The private key shares reported by `initialize.html` should be distributed
+    to election officials; these are needed during the vote tallying step
+    below. For the purposes of a mock election, one might simply paste them
+    into a file for storage until later.
 
 3.  Initialize the voter status database. Run `star-voter-db -b :: -p 8002`
     to start the server on port 8002. You will then need to tell the
@@ -135,4 +137,12 @@ the servers we set up in the previous step.
 
 ## Finalizing the election
 
-Not implemented yet!
+Visit `server:8003/tally` and follow the instructions there. The public key and
+private shares are the ones that were reported during election startup at
+`localhost:8001/initialize.html` (though revisiting this page will generate a
+fresh key pair and is thus not a useful thing to do). The public key may be
+recovered from `star-terminal/start.sh` if necessary, while the private shares
+should be input by election officials. Only a threshold number of private
+shares need be entered. The controller will then report the total number of
+votes for each race and selection (though any selections which received no
+votes at all will be omitted).

@@ -22,7 +22,7 @@ module Application.Star.HashChain
   , encryptRaces
   , encryptRace
   , encryptRecord
-  , decrypt
+  , decryptRecord
   , hash
   , internalHash
   , publicHash
@@ -137,7 +137,7 @@ encryptBallot :: MonadCRandomR e m
               => PublicKey
               -> Ballot
               -> m (Encrypted Ballot, Proof Ballot)
-encryptBallot k b = encrypt k b >>= \e -> return (Encrypted e, proof)
+encryptBallot k b = encrypt k b >>= \e -> return (e, proof)
   where
     proof = Proof mempty -- TODO: not an actual proof
 
@@ -149,7 +149,7 @@ encryptRace :: MonadCRandomR e m
             -> BallotId
             -> RaceSelection
             -> m (Encrypted (BallotId, RaceSelection))
-encryptRace k bid r = liftM Encrypted (encrypt k (bid, r))
+encryptRace k bid r = encrypt k (bid, r)
 
 publicHash :: BallotCastingId
            -> Ext (Encrypted Ballot)
@@ -170,6 +170,9 @@ internalHash :: BallotCastingId
 internalHash bcid cv pv cbid m zi' =
   InternalHash $ hash (bcid <||> cv <||> pv <||> cbid <||> m <||> zi')
 
+decryptRecord :: PrivateKey -> EncryptedRecord -> Either String Ballot
+decryptRecord k r = decrypt k (view cv r)
+
 -- TODO: go low-level enough that encodeToInteger/decodeFromInteger are
 -- efficient (i.e. just copy bytes instead of doing arithmetic)
 encodeToInteger :: Binary a => a -> Integer
@@ -177,7 +180,9 @@ encodeToInteger = foldl' (\num digit -> num*256 + toInteger digit) 255 . BS.unpa
 
 decodeFromInteger :: Binary a => Integer -> Either String a
 decodeFromInteger n = do
-  255:bytes <- return . reverse . digitsOf $ n
+  bytes <- case reverse (digitsOf n) of
+    255:bytes -> return bytes
+    _ -> Left "Magic number mismatch"
   case B.decodeOrFail (BS.pack bytes) of
     Left (_, bo, err) -> Left (err ++ " at position " ++ show bo)
     Right (bs, bo, a) | BS.null bs -> return a
@@ -186,13 +191,12 @@ decodeFromInteger n = do
   digitsOf n | n <= 0 = []
              | otherwise = let (q, r) = n `quotRem` 256 in fromInteger r : digitsOf q
 
--- | This is a placeholder - it does not actually implement a strong encryption
--- scheme.
-encrypt :: (MonadCRandomR e m, Binary a) => PublicKey -> a -> m CipherText
-encrypt k = encryptAsym k . encodeToInteger
+encrypt :: (MonadCRandomR e m, Binary a) => PublicKey -> a -> m (Encrypted a)
+encrypt k = liftM Encrypted . encryptAsym k . encodeToInteger
 
-decrypt :: Binary a => PrivateKey -> CipherText -> Either String a
-decrypt k = decodeFromInteger . decryptAsym k
+decrypt :: Binary a => PrivateKey -> Encrypted a -> Either String a
+decrypt k = decodeFromInteger . decryptAsym k . unEncrypted
+  where unEncrypted (Encrypted ct) = ct
 
 hash :: Binary a => a -> SerializableBS
 hash = SB . bytestringDigest . sha256 . B.encode
