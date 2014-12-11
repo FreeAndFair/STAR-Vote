@@ -249,13 +249,26 @@ controller = route $
           doUpdate (FillOut ballot)
     )
   , ("cast",
-     method POST $
-       do castingID <- maybe (error "Required param 'bcid' not present")
-                             (BallotCastingId . decodeUtf8) <$> getPostParam "bcid"
-          res <- doUpdate $ SetUnknownBallotTo Cast castingID
-          case res of
-            Left err -> throwError err
-            Right () -> return ()
+     (method GET $
+        page "Cast ballot" $ do
+          H.p "Scan the barcode, then place the ballot in the box."
+          H.form ! A.method "POST" ! A.class_ "form" $ do
+            H.label ! A.for "bcid" $ "Casting ID:"
+            H.input ! A.id "bcid" ! A.name "bcid" ! A.type_ "text"
+            H.input ! A.type_ "submit" ! A.value "Cast") <|>
+     (method POST $
+        do castingID <- maybe (error "Required param 'bcid' not present")
+                              (BallotCastingId . decodeUtf8) <$> getPostParam "bcid"
+           res <- doUpdate $ SetUnknownBallotTo Cast castingID
+           case res of
+             Left err ->
+               page "Vote not registered" $ do
+                 H.p $ H.toHtml err
+                 H.p $ H.a ! A.href "/cast" $ "Return"
+             Right () ->
+               page "Thank you for voting" $ do
+                 H.p "Your ballot has been cast. Thank you for voting."
+                 H.p $ H.a ! A.href "/cast" $ "Return")
     )
   , ("spoil",
      method POST $
