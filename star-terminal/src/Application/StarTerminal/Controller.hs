@@ -63,6 +63,7 @@ import           Data.ByteString                       (ByteString)
 import           Data.List                             (foldl')
 import           Data.Maybe                            (catMaybes, fromJust,
                                                         isNothing)
+import           Data.Monoid                           ((<>))
 import           Data.Text                             (Text, pack)
 import qualified Data.Text                             as T
 import           Data.Text.Encoding                    (decodeUtf8With,
@@ -144,7 +145,7 @@ recordBallotSelection = do
   s <- getPostParam (e "selection")
   case s of
     Just selection -> do
-      setSelection style race (d selection)
+      setSelection code style race (d selection)
       redirect (e (nextStepUrl code style race))
     Nothing -> pass
 
@@ -241,8 +242,8 @@ getSelection style race = do
   c <- getCookie (e k)
   return $ (d . cookieValue) <$> c
 
-setSelection :: StarTerm m => BallotStyle -> Race -> Selection -> m ()
-setSelection style race s = modifyResponse $ addResponseCookie (c s)
+setSelection :: StarTerm m => BallotCode -> BallotStyle -> Race -> Selection -> m ()
+setSelection code style race s = modifyResponse $ addResponseCookie (c s)
   where
     k = key style race
     c selection = Cookie
@@ -250,7 +251,7 @@ setSelection style race s = modifyResponse $ addResponseCookie (c s)
       , cookieValue    = e selection
       , cookieExpires  = Nothing
       , cookieDomain   = Nothing
-      , cookiePath     = Just (e "/")
+      , cookiePath     = Just (e $ "/ballots/" <> T.pack (show code))
       , cookieSecure   = False  -- TODO: should be True in production
       , cookieHttpOnly = False
       }

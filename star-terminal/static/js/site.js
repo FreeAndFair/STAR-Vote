@@ -14,7 +14,7 @@
 
   function record(raceKey, value, secure) {
     var kv = encodeURIComponent(raceKey) + "=" + encodeURIComponent(value);
-    var path = ";path=/";
+    var path = ";path=" + window.location.pathname.split("/").slice(0,3).join("/");
     var sec  = secure ? ";secure" : "";
     document.cookie = kv + path + sec;
   }
