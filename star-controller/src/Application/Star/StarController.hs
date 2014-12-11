@@ -271,13 +271,32 @@ controller = route $
                  H.p $ H.a ! A.href "/cast" $ "Return")
     )
   , ("spoil",
-     method POST $
-       do castingID <- maybe (error "Required param 'bcid' not present")
-                             (BallotCastingId . decodeUtf8) <$> getPostParam "bcid"
-          res <- doUpdate $ SetUnknownBallotTo Spoiled castingID
-          case res of
-            Left err -> throwError err
-            Right () -> return ()
+     (method GET $
+       page "Invalidate Ballot" $ do
+         H.p $
+           "Scan your barcode to invalidate the ballot. Invalidated (spoiled) " <>
+           "ballots can be used to check that the election system is working " <>
+           "properly. You can also re-vote after spoiling your ballot."
+         H.form ! A.method "POST" ! A.class_ "form" $ do
+           H.label ! A.for "bcid" $ "Casting ID:"
+           H.input ! A.id "bcid" ! A.name "bcid" ! A.type_ "text"
+           H.input ! A.type_ "submit" ! A.value "Invalidate/Spoil") <|>
+     (method POST $
+        do castingID <- maybe (error "Required param 'bcid' not present")
+                              (BallotCastingId . decodeUtf8) <$> getPostParam "bcid"
+           res <- doUpdate $ SetUnknownBallotTo Spoiled castingID
+           case res of
+             Left err ->
+               page "Ballot not invalidated" $ do
+                 H.p $ H.toHtml err
+                 H.p $ H.a ! A.href "/spoil" $ "Return" 
+             Right () ->
+               page "Ballot invalidated" $ do
+                 H.p $ "Your ballot has been invalidated. Please consider saving it " <>
+                       "in order to audit the election."
+                 H.p $ "Enter the original five-digit voting code at a terminal to " <>
+                       "mark another ballot."
+                 H.p $ H.a ! A.href "/spoil" $ "Return")
     )
   , ("ballotBox",
      method GET $
