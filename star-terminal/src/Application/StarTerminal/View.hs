@@ -51,7 +51,7 @@ codeEntryView ts =
 -- | Displays a single race, prompts voter to make a selection.
 ballotStepView :: Translations -> NavLinks -> BallotStyle -> Race -> Maybe Selection -> Html
 ballotStepView ts navLinks bStyle r s = withNav ts navLinks $
-  div ! class_ "container" $ do
+  div ! class_ "container content" $ do
     div ! class_ "page-header" $ do
       h1 (toHtml (_rDescription r))
     H.form ! role "form" ! A.method "post" $ do
@@ -92,7 +92,7 @@ summaryView :: Translations -> BallotCode -> BallotStyle -> Ballot -> Html
 summaryView ts code bStyle ballot =
   H.form ! method "post" $ do
     navSummary ts code bStyle
-    div ! class_ "container" $ do
+    div ! class_ "container content" $ do
       div ! class_ "page-header" $ do
         h1 (t "summary" ts)
       foldl' (\h race -> h <> summaryItemView ts code bStyle race ballot)
