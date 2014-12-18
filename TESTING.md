@@ -46,14 +46,12 @@ Per-device:
 
 Test results:
 
-
 iPod Touch
 Model MD717LL/A
 Version 7.1.1
 Safari
 borrowed from Dave Archer/the PROCEED project (lightning cable borrowed from
 Dan Zimmerman) [two iPods returned, cable returned]
-
 fail A - only 5 governors have titles
     changed to pass A after commit afc27ab
 pass B
@@ -67,8 +65,6 @@ fail H - only 4 representatives are visible/reachable
 fail I - strike mark not visible
     changed to pass I after commit afc27ab
 pass J
-
-
 
 Note II
 borrowed (with cable) from Ledah Casburn [tablet+cable returned]
@@ -89,8 +85,6 @@ pass H
 pass I
 pass J
 
-
-
 Asus Android
 borrowed from Jesse Hallett [returned]
 Asus Transformer Pad TF700T
@@ -100,6 +94,55 @@ ARMv7 Processor rev 9 v7l
 CyanogenMod version 11-20140104-SNAPSHOT-M2-tfg00t
 Build number cm_tf700t-userdebug 4.4.2 KOT49H 87ca68fb94 test-keys
 Firefox 35.0beta
+pass A
+pass B
+pass C
+pass D
+pass E
+pass F
+pass G
+pass H
+pass I
+pass J
+
+Kindle Fire HDX 8.9 (3rd Generation)
+Silk Browser
+borrowed from Tristan Ravitch [returned]
+pass A
+pass B
+pass C
+pass D
+pass E
+pass F
+pass G
+pass H
+pass I
+pass J
+
+Nexus 7 (2nd generation)
+Android version 4.4.4
+Kernel version 3.4.0-g03485a6 android-build@vpbs1.mtv.corp.google.com #1
+Build number KTU84P
+Google Chrome 34.0.1847.114
+borrowed from Tom DuBuisson [returned]
+pass A
+pass B
+pass C
+pass D
+pass E
+pass F
+pass G
+pass H
+pass I
+pass J
+
+LG VK810 4G Rev 1.0
+Android 4.4.2
+Kernel 3.4.0 lge@android-build
+Build number KOT49I.VK81022B
+Software version VK81022B
+Google Chrome 39.0.2171.93
+borrowed from Anne-Marie [returned]
 pass A
 pass B
 pass C
