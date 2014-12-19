@@ -34,6 +34,11 @@ data NavLinks = NavLinks
   , _index :: Maybe Text  -- ^ "show progress" button URL
   }
 
+-- function(){} looks stupid, but works around a bug in old Safari versions
+-- where clicking on a label wouldn't activate the associated widget.
+labelEmptyOnclick :: Html -> Html
+labelEmptyOnclick = H.label ! onclick "function(){};"
+
 -- | Page that prompts voter to enter a ballot code.
 codeEntryView :: Translations -> Html
 codeEntryView ts =
@@ -41,7 +46,7 @@ codeEntryView ts =
     div ! class_ "page-header" $ do
       h1 (t "enter_ballot_code" ts)
     H.form ! role "form" ! A.method "get" $ do
-      H.label $ do
+      labelEmptyOnclick $ do
         t "ballot_code_label" ts
         whitespace
         input ! type_ "text" ! name "code"
@@ -64,7 +69,7 @@ ballotStepView ts navLinks bStyle r s = withNav ts navLinks $
 ballotOptionView :: Translations -> Maybe Selection -> Option -> Html
 ballotOptionView _ s o =
   div ! class_ "radio" $ do
-    H.label $ do
+    labelEmptyOnclick $ do
       input ! type_ "radio" ! name "selection" ! class_ "ballot-option" ! value k ! isChecked
       H.span $ do
         selectionDescription o
