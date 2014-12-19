@@ -13,6 +13,7 @@ One-time setup (done once before a batch of testing different platforms):
 
 Per-device:
 1. Note down as many details about the hardware, OS, and browser as you can.
+   `javascript:alert(navigator.userAgent)` may be helpful here.
 2. Connect to Locus.
 3. Open a browser and open http://<ip>:8004/ in a new tab.
 6. Enter the code from the one-time setup.
@@ -74,16 +75,7 @@ Baseband version I317MUMUCML2
 Kernel version 3.0.31-2505907 se.infra@R0210-19 #1 Wed Feb 5 22:15:30 KST 2014
 Build number JSS15JJ307MUMUCNB1
 Browser is just labeled "Internet"
-pass A
-pass B
-pass C
-pass D
-pass E
-pass F
-pass G
-pass H
-pass I
-pass J
+pass A-J
 
 Asus Android
 borrowed from Jesse Hallett [returned]
@@ -94,30 +86,12 @@ ARMv7 Processor rev 9 v7l
 CyanogenMod version 11-20140104-SNAPSHOT-M2-tfg00t
 Build number cm_tf700t-userdebug 4.4.2 KOT49H 87ca68fb94 test-keys
 Firefox 35.0beta
-pass A
-pass B
-pass C
-pass D
-pass E
-pass F
-pass G
-pass H
-pass I
-pass J
+pass A-J
 
 Kindle Fire HDX 8.9 (3rd Generation)
 Silk Browser
 borrowed from Tristan Ravitch [returned]
-pass A
-pass B
-pass C
-pass D
-pass E
-pass F
-pass G
-pass H
-pass I
-pass J
+pass A-J
 
 Nexus 7 (2nd generation)
 Android version 4.4.4
@@ -125,16 +99,7 @@ Kernel version 3.4.0-g03485a6 android-build@vpbs1.mtv.corp.google.com #1
 Build number KTU84P
 Google Chrome 34.0.1847.114
 borrowed from Tom DuBuisson [returned]
-pass A
-pass B
-pass C
-pass D
-pass E
-pass F
-pass G
-pass H
-pass I
-pass J
+pass A-J
 
 LG VK810 4G Rev 1.0
 Android 4.4.2
@@ -143,8 +108,16 @@ Build number KOT49I.VK81022B
 Software version VK81022B
 Google Chrome 39.0.2171.93
 borrowed from Anne-Marie [returned]
+pass A-J
+
+iPad
+borrowed from Chris Falbusch
+OS Version 5.1.1 (9B206)
+Model MB293LL
+Safari; user agent says (among other things) Mozilla/5.0 AppleWebKit/534.46 Version/5.1 Mobile/9B206 Safari/7534.48.3
 pass A
-pass B
+fail B - clicking names does not select a radio button
+    changed to pass B after commit a6d19ac
 pass C
 pass D
 pass E
@@ -153,3 +126,15 @@ pass G
 pass H
 pass I
 pass J
+
+Motorola Xoom
+borrowed from Mike Seitz [returned]
+Android version 4.1.2
+Equipment ID IHDP56LU2
+Baseband version CDMA_N_03.1A.71P
+Kernel version 2.6.39.4-g4e32b94 android-build@vpbs1 ) #1 SMP PREEMPT
+[mismatched parenthesis comes from the device's own report]
+Build number JZO54M
+Opera Mini couldn't even reach http://<ip>:8004/
+Chrome 32.0.1700.99 pass A-J
+something just labeled "Browser" pass A-J
