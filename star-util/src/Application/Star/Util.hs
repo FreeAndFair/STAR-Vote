@@ -19,7 +19,9 @@ module Application.Star.Util (
   readURIParam, readBodyParam,
   render,
   -- * Global election configuration information
-  getBallotStyles, ballotOption
+  getBallotStyles, ballotOption,
+  -- * Interfacing with a ballot printer
+  printPDF
   ) where
 
 import           Control.Applicative
@@ -34,6 +36,7 @@ import           Data.Acid                     (AcidState, EventResult,
                                                 query, update)
 import           Data.Aeson
 import           Data.ByteString               (ByteString)
+import qualified Data.ByteString.Lazy          as Lazy
 import           Data.CaseInsensitive          (mk)
 import           Data.Char
 import           Data.Default
@@ -45,6 +48,7 @@ import           Data.Text.Encoding
 import           Snap.Core                     hiding (method)
 import           Snap.Http.Server              (quickHttpServe)
 import           Snap.Iteratee                 (TooManyBytesReadException)
+import           System.Process                (StdStream(CreatePipe), createProcess, shell, std_in)
 import           Text.Blaze.Html.Renderer.Utf8 (renderHtml)
 import           Text.Blaze.Html5              (Html)
 
@@ -98,6 +102,11 @@ method requested = do
   when (actual /= requested) . throwError
     $  "Bad method, expected " <> (T.pack . show) requested
     <> " but got "             <> (T.pack . show) actual
+
+printPDF :: MonadIO m => Lazy.ByteString -> m ()
+printPDF bs = liftIO $ do
+  (Just stdin, _, _, _) <- createProcess (shell "lp -- -") { std_in = CreatePipe }
+  Lazy.hPutStr stdin bs
 
 
 -- This is a bit of an ugly instance - see

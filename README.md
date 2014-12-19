@@ -61,6 +61,7 @@ Summary:
         -d voterids='[(3,Voter {_voterName="John Doe", _voterAddress = "Nowhereland"}),(5,Voter {_voterName = "Jane Doe", _voterAddress = "Stix"})]' \
         -d voterstatus='[(3,5,"oregon-2014"),(5,6,"oregon-2014")]'
     $ star-controller -b :: -p 8003
+    $ lpoptions -d default_printer
     $ star-terminal/start.sh
 
 1.  Start the append-only bulletin board on port 8000 by running `bbserver`.
@@ -99,7 +100,12 @@ Summary:
     `oregon-2014` ballot style. Currently `oregon-2014` is the only supported
     ballot style (see `star-util/src/Application/Star/Util.hs`).
 4.  Start the controller on port 8003 with `star-controller -b :: -p 8003`.
-5.  Start at least one voting terminal. For a default configuration, run
+5.  Configure the default printer for `lp`. You can check the current default
+    with `lpstat -p -d` (which will also list the names of non-default
+    printers), then select a default by appending the name of the printer you
+    wish to make the default to `lpoptions -d`. This default is used by voting
+    terminals when it is time to print a ballot and receipt.
+6.  Start at least one voting terminal. For a default configuration, run
     `star-terminal/start.sh`, which will start a server on port 8004. You can
     also run `star-terminal/start.sh 8005` and similar to start another
     terminal on port 8005.

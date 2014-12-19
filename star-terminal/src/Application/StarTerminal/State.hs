@@ -35,8 +35,8 @@ module Application.StarTerminal.State (
   -- * The running state of the terminal
   TerminalState(TerminalState), recordedVotes, ballotCodes, terminal,
   -- * AcidState actions for working with saved TerminalStates
-  GetReceipt(..), GetRegisterURL(..), GetTerminalConfig(..), InsertCode(..),
-  LookupBallotStyle(..), RecordVote(..), SaveReceipt(..), EncryptRecord(..)
+  GetRegisterURL(..), GetTerminalConfig(..), InsertCode(..),
+  LookupBallotStyle(..), RecordVote(..), EncryptRecord(..)
   ) where
 
 import           Control.Lens
@@ -72,7 +72,6 @@ data TerminalState = TerminalState
     -- style.
   , _ballotCodes   :: Map BallotCode BallotStyle
   , _terminal      :: Terminal
-  , _receiptInfo   :: Map BallotId (Ballot, BallotStyle, EncryptedRecord, UTCTime)
   , _seed          :: HmacDRBG
   }
 
@@ -104,13 +103,6 @@ lookupBallotStyle code = view (ballotCodes . at code) <$> ask
 recordVote :: EncryptedRecord -> Update TerminalState ()
 recordVote record = modify $ over recordedVotes (record :)
 
-saveReceipt :: BallotId -> Ballot -> BallotStyle -> EncryptedRecord -> UTCTime -> Update TerminalState ()
-saveReceipt bid ballot style record t = modify $ over receiptInfo (M.insert bid (ballot, style, record, t))
-
--- | Retrieve the information necessary to print the human-readable ballot and receipt
-getReceipt :: BallotId -> Query TerminalState (Maybe (Ballot, BallotStyle, EncryptedRecord, UTCTime))
-getReceipt bid = view (receiptInfo . at bid) <$> ask
-
 getTerminalConfig :: Query TerminalState Terminal
 getTerminalConfig = view terminal <$> ask
 
@@ -119,13 +111,11 @@ getRegisterURL = view registerURL <$> getTerminalConfig
 
 encryptRecord k m bid bcid zp zi ballot = randTrans seed (Util.encryptRecord k m bid bcid zp zi ballot)
 
-$(makeAcidic ''TerminalState [ 'getReceipt 
-                             , 'getRegisterURL
+$(makeAcidic ''TerminalState [ 'getRegisterURL
                              , 'getTerminalConfig
                              , 'insertCode
                              , 'lookupBallotStyle
                              , 'recordVote
-                             , 'saveReceipt
                              , 'encryptRecord
                              ])
 

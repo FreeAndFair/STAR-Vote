@@ -122,7 +122,6 @@ printReceiptView url ts =
     div ! class_ "page-header" $ do
       h1 (t "successful_vote" ts)
     p (t "collect_ballot_and_receipt" ts)
-    a ! href (toValue url) $ (t "print_ballot_receipt_now" ts)
 
 -- | Page layout -
 -- produces markup that appears on every page.

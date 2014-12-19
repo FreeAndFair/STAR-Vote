@@ -87,7 +87,8 @@ import qualified Application.Star.BallotStyle          as BS
 import           Application.Star.HashChain
 import           Application.Star.Util                 (MonadAcidState, doQuery,
                                                         doUpdate, errorUpdateShow,
-                                                        getBallotStyles, render)
+                                                        getBallotStyles, printPDF,
+                                                        render)
 import           Application.StarTerminal.LinkHelper
 import           Application.StarTerminal.Localization
 import           Application.StarTerminal.PaperBallot  (paperBallot)
@@ -170,39 +171,18 @@ finalize = do
                              (view zp0 term)
                              (view zi0 term)
                              ballot
-  now <- liftIO getCurrentTime
+  now             <- liftIO getCurrentTime
+  ballotContents  <- paperBallot ballot ballotId style record term now
   doUpdate $ RecordVote record
-  doUpdate $ SaveReceipt ballotId ballot style record now
   liftIO $ transmit (view postUrl term) record
+  printPDF ballotContents
   redirect (e (exitInstructionsUrl ballotId))
 
--- TODO: the terminal needs to print the human-readable ballot and receipt
 printReceipt :: StarTerm m => m ()
 printReceipt = do url <- fmap (ballotReceiptUrl . BallotId . d) <$> getParam "bid"
                   case url of
                     Nothing -> do404
                     Just u -> render (pg (printReceiptView u strings))
-
-
-printReceiptPDF :: StarTerm m => m ()
-printReceiptPDF = do
-  tm <- doQuery GetTerminalConfig
-  bid' <- fmap (BallotId . decodeUtf8With handler) <$> getParam "bid"
-  case bid' of
-    Nothing -> noBallot
-    Just bid -> do
-      foundInfo <- doQuery $ GetReceipt bid
-      case foundInfo of
-        Nothing -> noBallot
-        Just (ballot, ballotStyle, encrypted, voteTime) -> do
-          ballotContents <- paperBallot ballot bid ballotStyle encrypted tm voteTime
-          modifyResponse $ setContentType "application/pdf"
-          writeLBS ballotContents
-
-
-  where noBallot = do modifyResponse $ setResponseStatus 404 "Not Found"
-                      getResponse >>= finishWith
-        handler msg input = error $ "Failed to decode UTF8: " ++ show input
 
 -- | Send an encrypted vote to the controller
 transmit :: String -> EncryptedRecord -> IO ()
@@ -305,7 +285,6 @@ strings = translations
   , ("next_step", "next step")
   , ("previous_step", "previous step")
   , ("print_ballot", "print ballot to proceed")
-  , ("print_ballot_receipt_now", "Print your ballot and receipt now")
   , ("select_candidate", "Please select a candidate")
   , ("show_progress", "show progress")
   , ("star_terminal", "STAR Terminal")

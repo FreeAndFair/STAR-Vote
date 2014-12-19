@@ -37,6 +37,7 @@ Library
     MonadCatchIO-transformers,
     monadcryptorandom         >= 0.6   && < 0.7,
     mtl                       >= 2.2.1,
+    process                   >= 1     && < 2,
     text,
     safecopy                  >= 0.8   && < 0.9,
     snap                      >= 0.13  && < 0.14,

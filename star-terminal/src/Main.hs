@@ -75,7 +75,7 @@ main = do
   seed    <- newGenIO
 
   let term = Terminal tId pubkey zp zi z0 voteURL regURL
-      defaultState = TerminalState def def term M.empty seed
+      defaultState = TerminalState def def term seed
 
   stateFile <- getDataFileName ("terminalState" ++ tIdStr)
   putStrLn $ "The state file is " ++ stateFile ++ ". Delete it to reconfigure the terminal."
@@ -118,7 +118,6 @@ site static =
           , ("ballots/:code/summary",         method GET  showSummary)
           , ("ballots/:code/summary",         method POST finalize)
           , ("receipt/:bid",                  method GET  printReceipt)
-          , ("receipt/:bid/print",            method GET  printReceiptPDF)
           , ("ballots/:ballotId/codes/:code", method POST recordBallotStyleCode)
           ] <|>
     dir "static" (serveDirectory static) <|>
