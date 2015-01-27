@@ -60,22 +60,23 @@ ballotStepView ts navLinks bStyle r s = withNav ts navLinks $
     div ! class_ "page-header" $ do
       h1 (toHtml (_rDescription r))
     H.form ! role "form" ! A.method "post" $ do
-      foldl' (\h o -> h <> ballotOptionView ts s o) mempty (_rOptions r)
+      div ! class_ "radio" $
+        foldl' (\h o -> h <> ballotOptionView ts s o) mempty (_rOptions r)
       input ! type_ "hidden" ! name "race-key" ! value (toValue (key bStyle r))
       noscript $ do
         H.button ! type_ "submit" ! class_ "btn btn-default" $ do
           (t "submit" ts)
 
 ballotOptionView :: Translations -> Maybe Selection -> Option -> Html
-ballotOptionView _ s o =
-  div ! class_ "radio" $ do
-    labelEmptyOnclick $ do
-      input ! type_ "radio" ! name "selection" ! class_ "ballot-option" ! value k ! isChecked
-      H.span $ do
-        selectionDescription o
-      br
-      small ! class_ "text-muted" $ do
-        maybe nbsp toHtml (_oOccupation o)
+ballotOptionView _ s o = do
+  input ! type_ "radio" ! name "selection" ! class_ "ballot-option unlabelled" ! value k ! isChecked ! A.id k
+  labelEmptyOnclick ! for k $ do
+    H.span $ do
+      selectionDescription o
+    br
+    small ! class_ "text-muted" $ do
+      maybe nbsp toHtml (_oOccupation o)
+  br
   where
     k = toValue (_oId o)
     isChecked = case s of
@@ -96,12 +97,12 @@ selectionDescription o = do
 summaryView :: Translations -> BallotCode -> BallotStyle -> Ballot -> Html
 summaryView ts code bStyle ballot =
   H.form ! method "post" $ do
-    navSummary ts code bStyle
     div ! class_ "container content" $ do
       div ! class_ "page-header" $ do
         h1 (t "summary" ts)
       foldl' (\h race -> h <> summaryItemView ts code bStyle race ballot)
         mempty (view bRaces bStyle)
+    navSummary ts code bStyle
 
 summaryItemView :: Translations -> BallotCode -> BallotStyle -> Race -> Ballot -> Html
 summaryItemView _ code bStyle race ballot =
@@ -145,7 +146,7 @@ page pageTitle pageContent = docTypeHtml ! lang "en" $ do
     script mempty ! src "/static/js/site.js"
 
 withNav :: Translations -> NavLinks -> Html -> Html
-withNav ts navLinks c = navbar ts navLinks <> c
+withNav ts navLinks c = c <> navbar ts navLinks
 
 navbar :: Translations -> NavLinks -> Html
 navbar ts navLinks =
