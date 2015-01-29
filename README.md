@@ -131,15 +131,11 @@ the servers we set up in the previous step.
     each with a browser open to a separate server.
 *   **Ballot reading:** Not implemented yet! (But can/should be implemented by
     outside parties.)
-*   **Vote submission station:** Have a terminal open. The GUI for casting or
-    spoiling votes is not implemented yet. Instead, use commands like the
-    following:
-
-        curl -X POST server:8003/cast -d bcid=blahblahblah
-
-    You can also use `spoil` in place of `cast`. The `bcid` parameter comes
-    from the filled-out ballot printed by the voting terminal; it is visible as
-    plain text there or may be entered by scanning the barcode.
+*   **Vote submission station:** Have a browser open to `server:8003/cast` for
+    casting and to `server:8003/spoil` for spoiling. The filled-out ballot
+    printed by the voting terminal includes a "Casting ID", visible in plain
+    text and encoded as a barcode. The barcode can be scanned to fill out one
+    of the two text fields at this station.
 
 ## Finalizing the election
 
