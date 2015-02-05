@@ -28,14 +28,16 @@ import qualified Data.ByteString.Base64 as B64
 import qualified Data.ByteString.Char8 as Char8
 import Data.Char
 import Data.Either
-import Data.List (isSuffixOf)
+import Data.List (isSuffixOf, sortBy)
 import Data.List.Split
 import Data.Maybe
+import Data.Ord
 import Data.String
 import Data.Text.Encoding (decodeUtf8)
 import Data.SafeCopy
 import Network.HTTP.Client hiding (method)
 import Network.HTTP.Client.TLS
+import Snap.Util.FileServe
 import StarVote.Crypto.Types as TEG
 import StarVote.Crypto.ThresholdElGamal
 import System.Environment
@@ -227,7 +229,8 @@ extractStyle barcode = maybe barcode id . msum $ map getCode parts
 
 
 controller :: (MonadError Text m, MonadAcidState ControllerState m, MonadSnap m) => m ()
-controller = route $
+controller = liftIO (getDataFileName "static") >>= \static ->
+  dir "static" (serveDirectory static) <|> route
   [ ("generateCode",
      method POST
       (do styleID <- extractStyle <$> decodeParam rqPostParams "style"
@@ -328,7 +331,7 @@ controller = route $
   ]
 
 page :: MonadSnap m => Text -> H.Html -> m ()
-page title = render . pageHtml . starPageWithContents title
+page title = render . pageHtml . (pageCSSIncludes <>~ ["static/site.css"]) . starPageWithContents title
 
 decryptionParametersForm :: MonadSnap m => m ()
 decryptionParametersForm = page "Vote decryption, part 1/3" $ do
@@ -337,16 +340,75 @@ decryptionParametersForm = page "Vote decryption, part 1/3" $ do
     H.input ! A.name "public" ! A.type_ "text"
     H.input ! A.type_ "submit"
 
-tally params shares ballotBox = page "Vote decryption, part 3/3" $ do
+-- TODO: Should probably decrypt spoiled ballots and say something one way or
+-- another about ballots that are neither spoiled nor cast.
+tally :: MonadSnap m => TEGParams -> [(Integer, Integer)] -> Map k (BallotStatus, EncryptedRecord) -> m ()
+tally params shares ballotBox = do
   let ballots = [decryptRecord private er | (Cast, er) <- M.elems ballotBox]
       private = TEGPrivateKey params (recoverKeyFromShares params (TEG.fromList shares))
       (failures, successes) = partitionEithers ballots
       summary = M.unionsWith Bag.union [Bag.singleton <$> b | Ballot b <- successes]
-  H.h2 "successfully decrypted votes"
-  H.p . fromString . show $ summary
-  when (not . null $ failures) $ do
-    H.h2 "WARNING! Some errors detected."
-    H.ul (mapM_ (H.li . fromString . show) failures)
+  styles <- getBallotStyles
+  page "Vote decryption, part 3/3" $ do
+    H.h2 "successfully decrypted votes"
+    renderOptions $ lookupOptions styles summary
+    when (not . null $ failures) $ do
+      H.h2 "WARNING! Some errors detected."
+      H.ul (mapM_ (H.li . fromString . show) failures)
+
+type TallySummary = (Maybe BallotStyleId, Maybe Race, Maybe Option, Int)
+
+lookupOptions :: BallotStyles
+              -> Map BallotKey (Bag.MultiSet Selection)
+              -> [TallySummary]
+lookupOptions styles summary =
+  [ process key selection count
+  | (key, bag) <- M.toList summary
+  , (selection, count) <- Bag.toOccurList bag
+  ] where
+
+  lookupLens lens key list = [v | v <- list, view lens v == key]
+
+  lookupRace :: BallotStyleId -> RaceId -> Maybe Race
+  lookupRace bid rid = listToMaybe (lookupLens bId bid styles >>= lookupLens rId rid . view bRaces)
+
+  lookupOption :: Selection -> [Option] -> Maybe Option
+  lookupOption selection options = listToMaybe (lookupLens oId selection options)
+
+  process key selection count = let
+    mStyleRace = fromKey key
+    mStyleId   = fst <$> mStyleRace
+    mRace      = mStyleRace >>= uncurry lookupRace
+    mOption    = mRace >>= lookupOption selection . view rOptions
+    in (mStyleId, mRace, mOption, count)
+
+renderOptions :: [TallySummary] -> H.Html
+renderOptions summary = H.div ! A.class_ "tally" $ H.table $ do
+  H.thead . H.tr $ do
+    H.th "Ballot style"
+    H.th "Race"
+    H.th "Candidate"
+    H.th "Vote tally"
+  H.tbody . mapM_ renderOption . sortBy ordering $ summary
+  where
+  ordering = comparing (\(bid,_,_,_) -> bid)
+          <> comparing (\(_,race,_,_) -> view rDescription <$> race)
+          <> comparing (\(_,_,_,count) -> count)
+          <> comparing (\(_,_,option,_) -> view oName <$> option)
+
+renderOption :: TallySummary -> H.Html
+renderOption (mStyleId, mRace, mOption, count) = H.tr $ do
+  warnNothing badStyle  mStyleId H.toHtml
+  warnNothing badRace   mRace    (H.toHtml . view rDescription)
+  warnNothing badOption mOption  (H.toHtml . view oName)
+  H.td . fromString . show $ count
+  where
+  warnNothing msg val f = maybe (H.td ! A.class_ "warning" $ msg)
+                                (H.td . f)
+                                val
+  badStyle  = "Ill-formed ballot style"
+  badRace   = "Unknown race"
+  badOption = "No matching candidate"
 
 sharesForm params = page "Vote decryption, part 2/3" $ do
   H.p "Each trustee should enter a share below."
