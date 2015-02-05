@@ -10,11 +10,16 @@ user"; and `B` means "visit this location in a browser".
 Summary:
 
     # apt-get install ghc cabal-install llvm libsqlite3-dev
+    or
+    $ brew install ghc cabal-install llvm sqlite3
+      (or install ghc and cabal via Haskell Platform)
     $ git clone ssh://git@github.com/GaloisInc/e2eviv
     $ cd e2eviv/src
     $ cabal update
     $ cabal sandbox init
     $ cabal install -j ./append-only-bb ./star-{controller,crypto,keygen,terminal,types,util,voter-db}
+
+ (add discussion of regexp-compat included with Haskell Platform)
 
 1.  Install GHC, cabal-install, llvm 3.4, and sqlite. Often this is as
     simple as `apt-get install ghc cabal-install llvm libsqlite3-dev`
