@@ -5,7 +5,7 @@ STAR-Vote
 
 *STAR-Vote* is comprised of multiple components: *back-end applications* that handle the generation of encryption keys, maintenance of a voter status database, maintenance of a public authenticated write-only bulletin board, and tallying of cast ballots after an election; a *polling place controller* that manages the *STAR-Vote* protocol at a given polling place; a *check-in station* used by voters to check in to a polling place; a *ballot claim station* used by voters to obtain a ballot code after checking in; a *voting terminal* at which voters mark their ballots electronically and receive filled paper ballots; a *ballot reading station* that can scan a filled paper ballot and read it to the voter (for accessibility purposes); and a *vote submission station* at which voters can cast their completed ballots. 
 
-###Voter Flow Overview
+### Voter Flow Overview
 
 From the voter's perspective, there are several steps in the *STAR-Vote* process; these result in a voter flow very similar to that typically found in traditional polling places. Note that this is a high-level overview; many details of the process are not described here.
 
@@ -74,26 +74,26 @@ Requirements
 Secondary Requirements
 ===
 
-####Usability:
+#### Usability:
 
 * The user interface for running the election (generating keys, tallying votes, auditing, etc.) must be easy to use for non-technical users (election officials).
 * The user interfaces for all polling place components must be trivial to use for non-technical users (polling place volunteers, voters).
 * The voting experience should be as similar as possible to traditional polling place voting.
 
-####Persistence
+#### Persistence
 
 * The system will exhibit minimal data loss from an arbitrary failure (e.g., a typical system failure like a Windows crash) of any back-end system; in no case will any vote data be lost. 
 * The system will exhibit no data loss from an arbitrary failure of any polling place system, but may in some failure modes intentionally discard data to preserve voter privacy.
   
-####Scalability:
+#### Scalability:
 
 * The polling place components must support polling places requiring thousands of ballot styles, at which tens of thousands of voters may vote in a single day. 
 
-####Power:
+#### Power:
 
 * Polling place components must be deployable on hardware that can run on batteries for at least 8 (?) continuous hours.
 
-####Analysis:
+#### Analysis:
 
 * The system should be able to provide information about voting activity (e.g. numbers of votes cast/audited, number of voters entering the polling place, etc.)
 
