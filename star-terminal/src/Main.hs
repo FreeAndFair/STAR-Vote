@@ -13,6 +13,7 @@ module Main
 
 import           Control.Applicative
 import           Control.Monad                       (void)
+import           Control.Exception                   (catch, ErrorCall)
 import           Crypto.Random                       (newGenIO)
 import           Data.Acid                           (openLocalStateFrom, query)
 import qualified Data.Binary                         as Binary
@@ -32,6 +33,8 @@ import           Network.HTTP.Client                 (Request, RequestBody (..),
                                                       httpNoBody, parseUrl,
                                                       urlEncodedBody,
                                                       withManager)
+import           System.Exit                         (exitFailure)
+import           System.IO                           (hPutStrLn, stderr)
 import qualified Network.HTTP.Client                 as HTTP
 import           Network.HTTP.Client.TLS             (tlsManagerSettings)
 import           Snap.Core
@@ -73,6 +76,11 @@ main = do
   voteURL <-                              getEnv "STAR_POST_VOTE_URL"
   regURL  <-                              getEnv "STAR_REGISTER_URL"
   seed    <- newGenIO
+
+  checkDecoding "STAR_PUBLIC_KEY"         pubkey
+  checkDecoding "STAR_INIT_PUBLIC_HASH"   zp
+  checkDecoding "STAR_INIT_INTERNAL_HASH" zi
+  checkDecoding "STAR_PUBLIC_SALT"        z0
 
   let term = Terminal tId pubkey zp zi z0 voteURL regURL
       defaultState = TerminalState def def term seed
@@ -141,4 +149,11 @@ decodeBinary n s = if BS.length bs == n then SB bs else
 decodeBinary' :: Binary.Binary a => String -> a
 decodeBinary' = Binary.decode . B64.decodeLenient . fromString
 
+decodingError :: String -> ErrorCall -> IO ()
+decodingError name _ = do
+  hPutStrLn stderr $ "Error decoding " ++ name ++ " from environment."
+  exitFailure
 
+-- TODO: probably want deepseq
+checkDecoding :: String -> a -> IO ()
+checkDecoding name v = catch (v `seq` return ()) (decodingError name)
