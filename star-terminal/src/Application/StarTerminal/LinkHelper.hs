@@ -37,3 +37,12 @@ exitInstructionsUrl (BallotId code) = mconcat ["/receipt/", code, "/"]
 
 ballotReceiptUrl :: BallotId -> Text
 ballotReceiptUrl (BallotId code) = mconcat ["/receipt/", code, "/print"]
+
+stopStudyUrl :: Text
+stopStudyUrl = "/study/stop"
+
+aboutStudyUrl :: Text
+aboutStudyUrl = "/study/about"
+
+signInUrl :: Text
+signInUrl = "/ballots"

@@ -1,3 +1,4 @@
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-|
 Module      : Application.StarTerminal.Localization
@@ -11,9 +12,11 @@ import           Data.Text (Text)
 import qualified Data.Text as T
 import           Data.Map (Map)
 import qualified Data.Map as Map
+import           Data.Monoid
 
 type TranslationKey = Text
 newtype Translations = Translations (Map TranslationKey Text)
+  deriving Monoid
 
 translations :: [(Text, Text)] -> Translations
 translations = Translations . Map.fromList

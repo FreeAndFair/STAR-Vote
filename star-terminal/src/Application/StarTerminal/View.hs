@@ -7,9 +7,12 @@ Description : HTML views
 module Application.StarTerminal.View where
 
 import           Control.Lens
+import           Control.Monad
+import           Data.ByteString                       (ByteString)
 import           Data.List                             (foldl')
 import           Data.Maybe                            (isJust)
 import           Data.Monoid                           (mempty, (<>))
+import           Data.String
 import           Data.Text                             (Text)
 import qualified Data.Text                             as T
 import           Prelude                               hiding (div)
@@ -59,6 +62,7 @@ ballotStepView ts navLinks bStyle r s = withNav ts navLinks $
   div ! class_ "container content" $ do
     div ! class_ "page-header" $ do
       h1 (toHtml (_rDescription r))
+      p (t "select_candidate" ts)
     H.form ! role "form" ! A.method "post" $ do
       div ! class_ "radio" $
         foldl' (\h o -> h <> ballotOptionView ts s o) mempty (_rOptions r)
@@ -86,6 +90,9 @@ ballotOptionView _ s o = do
 view404 :: Html
 view404 = "Not found"
 
+internalErrorView :: Html
+internalErrorView = "Internal error"
+
 selectionDescription :: Option -> Html
 selectionDescription o = do
   toHtml (_oName o)
@@ -100,6 +107,7 @@ summaryView ts code bStyle ballot =
     div ! class_ "container content" $ do
       div ! class_ "page-header" $ do
         h1 (t "summary" ts)
+        p (t "summary_instructions" ts)
       foldl' (\h race -> h <> summaryItemView ts code bStyle race ballot)
         mempty (view bRaces bStyle)
     navSummary ts code bStyle
@@ -129,6 +137,120 @@ printReceiptView url ts =
       h1 (t "successful_vote" ts)
     p (t "collect_ballot_and_receipt" ts)
 
+welcomeView :: Translations -> Html
+welcomeView ts =
+  div ! class_ "container" $ do
+    h1 (t "welcome_to_study" ts)
+    mapM_ (p . toHtml) . T.lines $ localize "study_description" ts
+    bottomNav $ do
+      navLinkLeft  stopStudyUrl  (t "not_ready_to_begin" ts)
+      navLinkRight aboutStudyUrl (t "ready_to_begin"     ts)
+
+aboutView :: Translations -> Html
+aboutView ts =
+  div ! class_ "container" $ do
+    h1 (t "about_the_prototype" ts)
+    p (t "special_feature_intro" ts)
+    ul . mapM_ (li . toHtml) . T.lines $ localize "special_feature_bullets" ts
+    p (t "special_feature_outro" ts)
+    bottomNav $ do
+      stopLinkLeft ts
+      navLinkRight "/ballots" (t "proceed" ts)
+
+signInView :: Translations -> Html
+signInView ts =
+  div ! class_ "container" $ do
+    h1 (t "sign_in" ts)
+    p (t "enter_email_code" ts)
+    H.form ! role "form" ! A.method "get" $ do
+      input ! type_ "text" ! name "code"
+      whitespace
+      H.button ! type_ "submit" ! class_ "btn btn-default" $ do
+        (t "sign_in_button" ts)
+    bottomNav $ do
+      stopLinkLeft ts
+
+ballotInstructionsView :: Translations -> Text -> Html
+ballotInstructionsView ts url =
+  div ! class_ "container" $ do
+    h1 (t "filling_out_your_ballot" ts)
+    p  (t "mock_election"           ts)
+    p  (t "verify_your_vote"        ts)
+    bottomNav $ do
+      stopLinkLeft ts
+      navLinkRight url (t "proceed" ts)
+
+completionView :: Translations -> BallotCastingId -> Html
+completionView ts bcid =
+  div ! class_ "container" $ do
+    h1 (t "ballot_complete" ts)
+    p  (t "congratulations" ts)
+    p  (t "cast_or_spoil"   ts)
+    H.form ! role "form" ! A.method "post" ! action "/cast" $ do
+      input ! type_ "hidden" ! name "bcid" ! value (toValue (show bcid))
+      div ! class_ "text-center" $ do
+        button ! class_ "btn btn-default navbar-btn"
+               ! type_ "submit"
+               ! name "action" ! value "cast"
+               $ t "cast" ts
+      div ! class_ "text-center" $ do
+        button ! class_ "btn btn-default navbar-btn"
+               ! type_ "submit"
+               ! name "action" ! value "spoil"
+               $ t "spoil" ts
+    bottomNav $ do
+      stopLinkLeft ts
+
+castCompletedView :: Translations -> Html
+castCompletedView ts =
+  div ! class_ "container" $ do
+    h1 (t "you_voted" ts)
+    p  (t "thank_you" ts)
+    p  (t "answer_questions" ts)
+
+spoilCompletedView :: Translations -> Html
+spoilCompletedView ts =
+  div ! class_ "container" $ do
+    h1 (t "spoiled_ballot" ts)
+    p  (t "spoiled_explanation" ts)
+    bottomNav $ do
+      navLinkLeft stopStudyUrl (t "exit_study" ts)
+      navLinkRight signInUrl (t "another_ballot" ts)
+
+stopView :: Translations -> Html
+stopView ts =
+  div ! class_ "container" $ do
+    h1 (t "thank_you_for_participation" ts)
+    p  (t "why_stop" ts)
+    H.form ! role "form" ! A.method "post" $ do
+      forM_ reasons $ \(ix, reason) -> div $ do
+        labelEmptyOnclick $ do
+          input ! type_ "checkbox"
+                ! name ("reason" <> fromString (show ix))
+          whitespace
+          toHtml reason
+      div $ do
+        labelEmptyOnclick $ do
+          input ! type_ "checkbox"
+                ! name "other"
+          whitespace
+          t "other_reason_for_stopping" ts
+        whitespace
+        input ! type_ "text"
+              ! name "other_reason"
+      button ! class_ "btn btn-default navbar-btn navbar-left" ! type_ "submit" $ do
+        t "submit" ts
+  where
+  reasons = zip [0..] (T.lines (localize "reasons_for_stopping" ts))
+
+feedbackView :: Translations -> Html
+feedbackView ts =
+  div ! class_ "container" $ do
+    h1 (t "feedback_is_nice" ts)
+
+stopLinkLeft :: Translations -> Html
+stopLinkLeft ts = navLinkLeft stopStudyUrl (t "stop" ts)
+
 -- | Page layout -
 -- produces markup that appears on every page.
 page :: Text -> Html -> Html
@@ -151,27 +273,14 @@ withNav ts navLinks c = c <> navbar ts navLinks
 navbar :: Translations -> NavLinks -> Html
 navbar ts navLinks =
   bottomNav $ do
-    maybe mempty (\url -> navLink "navbar-left" url $ do
-      H.span mempty ! class_ "glyphicon glyphicon-chevron-left"
-      whitespace
-      t "previous_step" ts)
-      (_prev navLinks)
-    maybe mempty (\url -> navLink "navbar-right" url $ do
-      t "next_step" ts
-      whitespace
-      H.span mempty ! class_ "glyphicon glyphicon-chevron-right")
-      (_next navLinks)
-    maybe mempty (\url -> navLink "center-block" url $ do
-      t "show_progress" ts)
-      (_index navLinks)
+    maybe mempty (\url -> navLinkLeft   url (t "previous_step" ts)) (_prev  navLinks)
+    maybe mempty (\url -> navLinkRight  url (t "next_step"     ts)) (_next  navLinks)
+    maybe mempty (\url -> navLinkCenter url (t "show_progress" ts)) (_index navLinks)
 
 navSummary :: Translations -> BallotCode -> BallotStyle -> Html
 navSummary ts code bStyle =
   bottomNav $ do
-    navLink "navbar-left" (lastStepUrl code bStyle) $ do
-      H.span mempty ! class_ "glyphicon glyphicon-chevron-left"
-      whitespace
-      t "previous_step" ts
+    navLinkLeft (lastStepUrl code bStyle) (t "previous_step" ts)
     button ! class_ "btn btn-default navbar-btn navbar-right" ! type_ "submit" $ do
       t "print_ballot" ts
     -- navLink "navbar-left" (progressUrl code Nothing) $ do
@@ -188,6 +297,21 @@ navLink classes url l =
       l
   where
     cs = toValue (T.append "navbar-btn " classes)
+
+navLinkLeft :: Text -> Html -> Html
+navLinkLeft url label = navLink "navbar-left" url  $ do
+  H.span mempty ! class_ "glyphicon glyphicon-chevron-left"
+  whitespace
+  label
+
+navLinkRight :: Text -> Html -> Html
+navLinkRight url label = navLink "navbar-right" url $ do
+  label
+  whitespace
+  H.span mempty ! class_ "glyphicon glyphicon-chevron-right"
+
+navLinkCenter :: Text -> Html -> Html
+navLinkCenter url label = navLink "center-block" url label
 
 role :: AttributeValue -> Attribute
 role = attribute "role" " role=\""

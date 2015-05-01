@@ -39,7 +39,7 @@ ballot.
 Upon completing or skipping all ballot steps, the voter is presented with
 a summary of his/her selections.
 This page is produced by 'showSummary'.
-Upon selecting \"print ballot to proceed\", a POST request is made,
+Upon selecting \"done with this ballot\", a POST request is made,
 which is handled by 'finalize'.
 At this point the vote is encrypted and hashed.
 The hashes and encrypted vote are stored in the terminal's internal state,
@@ -60,6 +60,8 @@ import           Control.Monad.Except                  (MonadError)
 import           Control.Monad.IO.Class                (liftIO)
 import qualified Data.Aeson                            as JSON
 import           Data.ByteString                       (ByteString)
+import qualified Data.ByteString                       as BS
+import qualified Data.ByteString.Char8                 as Char
 import           Data.List                             (foldl')
 import           Data.Maybe                            (catMaybes, fromJust,
                                                         isNothing)
@@ -119,14 +121,19 @@ recordBallotStyleCode = do
 -- for that ballot style.
 askForBallotCode :: StarTerm m => m ()
 askForBallotCode = do
-  mCode  <- paramR "code"
+  mCode   <- paramR "code"
+  mJargon <- getJargonCookie
   case mCode of
-    Just c -> do mStyle <- doQuery (LookupBallotStyle c)
-                 case liftA2 (,) mCode mStyle of
-                   Just (code, style) -> redirect (e (firstStepUrl code style))
-                   Nothing            -> noCode
-    Nothing -> noCode
-  where noCode = render (pg (codeEntryView strings))
+    Nothing -> noCode mJargon
+    Just c  -> do mStyle <- doQuery (LookupBallotStyle c)
+                  case mStyle of
+                    Nothing    -> noCode mJargon
+                    Just style -> case mJargon of
+                      Nothing -> redirect (e url)
+                      Just u  -> render (pg (ballotInstructionsView (jargonStrings u) url))
+                      where url = firstStepUrl c style
+  where noCode     = render . pg . noCodeView
+        noCodeView = maybe (codeEntryView strings) (signInView . jargonStrings)
 
 showBallotStep :: StarTerm m => m ()
 showBallotStep = do
@@ -175,8 +182,13 @@ finalize = do
   ballotContents  <- paperBallot ballot ballotId style record term now
   doUpdate $ RecordVote record
   liftIO $ transmit (view postUrl term) record
-  printPDF ballotContents
-  redirect (e (exitInstructionsUrl ballotId))
+  mUseJargon <- getJargonCookie
+  case mUseJargon of
+    Nothing -> do
+      printPDF ballotContents
+      redirect (e (exitInstructionsUrl ballotId))
+    Just useJargon -> render . pg $
+      completionView (jargonStrings useJargon) ballotCastingId
 
 printReceipt :: StarTerm m => m ()
 printReceipt = do url <- fmap (ballotReceiptUrl . BallotId . d) <$> getParam "bid"
@@ -253,6 +265,66 @@ getBallot code = do
       sel <- getSelection style race
       return $ ((,) race) <$> sel
 
+studyWelcome :: StarTerm m => m ()
+studyWelcome = render . pg $ welcomeView strings
+
+castBCID, spoilBCID :: StarTerm m => BallotCastingId -> m ()
+castBCID bcid = do -- TODO: cast the ballot
+  render (pg (castCompletedView strings))
+spoilBCID bcid = do -- TODO: spoil the ballot
+  Just useJargon <- getJargonCookie
+  render (pg (spoilCompletedView (jargonStrings useJargon)))
+
+castBallot :: StarTerm m => m ()
+castBallot = do
+  mCastOrSpoil <- getParam "action"
+  mRawBCID     <- getParam "bcid"
+  case (mRawBCID, mCastOrSpoil) of
+    (Just rawBCID, Just castOrSpoil) -> case reads (Char.unpack rawBCID) of
+      (bcid, ""):_
+        | castOrSpoil == "cast"  -> castBCID  bcid
+        | castOrSpoil == "spoil" -> spoilBCID bcid
+      _ -> internalError
+    _ -> internalError
+  where
+  internalError = do
+    modifyResponse $ setResponseCode 500
+    render (pg internalErrorView)
+
+jargonCookie :: Bool -> Cookie
+jargonCookie useJargon = Cookie
+  { cookieName     = "use-jargon"
+  , cookieValue    = if useJargon then "1" else "0"
+  , cookieExpires  = Nothing
+  , cookieDomain   = Nothing
+  , cookiePath     = Just "/"
+  , cookieSecure   = False
+  , cookieHttpOnly = True
+  }
+
+getJargonCookie :: MonadSnap m => m (Maybe Bool)
+getJargonCookie = fmap (fmap useJargon) (getCookie "use-jargon")
+  where useJargon c = cookieValue c /= "0"
+
+jargonStrings :: Bool -> Translations
+jargonStrings useJargon = strings <> if useJargon then jargon else gentle
+
+studyAbout :: StarTerm m => m ()
+studyAbout = do
+  useJargon <- liftIO randomIO
+  modifyResponse $ addResponseCookie (jargonCookie useJargon)
+  render . pg $
+    aboutView (jargonStrings useJargon)
+
+studyStop :: StarTerm m => m ()
+studyStop = render (pg (stopView strings))
+
+studyRecordStopReason :: StarTerm m => m ()
+studyRecordStopReason = do -- TODO: actually record their feedback!
+  redirect "/study/stopped"
+
+feedbackThankYou :: StarTerm m => m ()
+feedbackThankYou = render (pg (feedbackView strings))
 
 do404 :: StarTerm m => m ()
 do404 = render (pg view404)
@@ -277,18 +349,68 @@ pg :: Html -> Html
 pg = page (localize "star_terminal" strings)
 
 -- | Adhoc i18n system, for use until a real i18n library is incorporated.
-strings :: Translations
+strings, jargon, gentle :: Translations
 strings = translations
   [ ("ballot_code_label", "Ballot code:")
   , ("collect_ballot_and_receipt", "Your completed ballot and receipt are printing now. To cast your vote, deposit your ballot into a ballot box. Keep the receipt - you can use it later to make sure that your vote was counted.")
   , ("enter_ballot_code", "Enter a ballot code to begin voting")
   , ("next_step", "next step")
   , ("previous_step", "previous step")
-  , ("print_ballot", "print ballot to proceed")
+  , ("print_ballot", "done with this ballot")
   , ("select_candidate", "Please select a candidate")
   , ("show_progress", "show progress")
   , ("star_terminal", "STAR Terminal")
   , ("submit", "Submit")
   , ("successful_vote", "You voted!")
-  , ("summary", "Review and finalize your selections")
+  , ("summary", "Review your selections")
+  , ("summary_instructions", "Click any race title to change your selection for that race.")
+  , ("welcome_to_study", "Welcome to the study")
+  , ("study_description", "Thank you for agreeing to participate in a study of a prototype voting system. This is an early prototype, so some parts are still rough. But your participation will help us make it better.\nThe study will include having you try voting using our prototype. Then we will ask you some questions afterwards. The study will take about fifteen minutes in total.\nBefore we begin, make sure you that have the “voter access code” that was included in the email.\nYou are free to stop your participation at any time.")
+  , ("ready_to_begin", "I am ready to begin the study")
+  , ("not_ready_to_begin", "No thanks, I do not want to participate")
+  , ("about_the_prototype", "About the prototype")
+  , ("stop", "Stop")
+  , ("proceed", "Proceed")
+  , ("sign_in", "Sign in")
+  , ("enter_email_code", "Enter in the voter access code that was given to you in email.")
+  , ("sign_in_button", "Sign in")
+  , ("filling_out_your_ballot", "Filling out your ballot")
+  , ("mock_election", "For this study, we have a mock election with three races and several candidates for each race.")
+  , ("select_candidate", "Select a candidate for this race.")
+  , ("ballot_complete", "Ballot complete")
+  , ("congratulations", "Congratulations, you have completed this ballot.")
+  , ("thank_you", "Thank you for casting your ballot.")
+  , ("answer_questions", "We hope you will take a few minutes to discuss your experience with our moderator.")
+  , ("you_voted", "Ballot cast. You voted!")
+  , ("exit_study", "exit the study")
+  , ("another_ballot", "fill out another ballot")
+  , ("thank_you_for_participation", "Thank you for your participation")
+  , ("why_stop", "Please take a minute to tell us why you are choosing to stop at this point:")
+  , ("reasons_for_stopping", "Too busy\nStudy does not look interesting\nI am already confused at this point")
+  , ("other_reason_for_stopping", "Other:")
+  , ("feedback_is_nice", "Your feedback is appreciated!")
+  ]
+
+jargon = strings <> translations
+  [ ("special_feature_intro", "This voting system has a special feature called VERIFIABLE VOTING. With verifiable voting, you can:")
+  , ("special_feature_bullets", "\"Spoil\" your ballot to challenge the voting terminal to prove that it is behaving correctly.\nVerify with a voting receipt that your ballot is included in the electronic ballot box.\nCheck that the election tally was computed from all the ballots in the electronic ballot box.")
+  , ("special_feature_outro", "You do not have to verify your ballot if you do not want to.")
+  , ("verify_your_vote", "Remember, you can verify your vote if you wish.")
+  , ("cast_or_spoil", "Next, you can either cast this ballot or invalidate/spoil it. Invalidated (spoiled) ballots can be used to check that the election system is working properly.")
+  , ("cast", "Cast")
+  , ("spoil", "Spoil")
+  , ("spoiled_ballot", "Ballot invalidated")
+  , ("spoiled_explanation", "Your ballot has been spoiled. After the election, your ballot will be decrypted and posted to a public bulletin board, and you may verify that it contains the vote you recorded.")
+  ]
+
+gentle = strings <> translations
+  [ ("special_feature_intro", "This voting system prototype has a special feature called PRACTICE BALLOTS. With practice ballots, you can:")
+  , ("special_feature_bullets", "See the list of races and candidates and how they appear on the ballot, letting you pause to do some research on who you want to vote for.\nTry out the candidate selection process to make sure you can do it without making mistakes.\nReveal your ballot to make sure it was created properly and was not tampered with by some part of a potentially hacked voting system.")
+  , ("special_feature_outro", "You can do as many practice ballots as you want. In fact, we encourage you to do several practice ballots. Eventually, we want you to cast your final ballot for this study. You do not need to tell us ahead of time when you are practicing and when you are doing your \"real\" ballot.")
+  , ("verify_your_vote", "Remember, you can do as many practice ballots as you wish.")
+  , ("cast_or_spoil", "Next, you can either cast this ballot, or treat it like a practice ballot. Practice ballots let you check that the election system is working properly.")
+  , ("cast", "Cast")
+  , ("spoil", "Practice")
+  , ("spoiled_ballot", "Practice ballot")
+  , ("spoiled_explanation", "This ballot will not be counted.")
   ]

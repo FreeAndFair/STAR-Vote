@@ -127,6 +127,12 @@ site static =
           , ("ballots/:code/summary",         method POST finalize)
           , ("receipt/:bid",                  method GET  printReceipt)
           , ("ballots/:ballotId/codes/:code", method POST recordBallotStyleCode)
+          , ("cast",                          method POST castBallot)
+          , ("study/welcome",                 method GET  studyWelcome)
+          , ("study/about",                   method GET  studyAbout) -- TODO: should really be a POST!
+          , ("study/stop",                    method GET  studyStop)
+          , ("study/stop",                    method POST studyRecordStopReason)
+          , ("study/stopped",                 method GET  feedbackThankYou)
           ] <|>
     dir "static" (serveDirectory static) <|>
     do404
