@@ -80,6 +80,7 @@ import           Network.HTTP.Client                   (Request (..),
 import           Network.HTTP.Client.TLS               (tlsManagerSettings)
 import           Snap.Core                             hiding (method)
 import           System.Random                         (randomIO, randomRIO)
+import           System.IO                             (hPutStrLn, stderr)
 import           Text.Blaze                            (AttributeValue)
 import           Text.Blaze.Html5                      (Html)
 
@@ -279,7 +280,7 @@ chooseStylesheet = do
   p <- getParam "presentation"
   case p of
     Just p' -> return (d p')
-    Nothing -> (sheets !!) <$> liftIO (randomRIO (0, length sheets))
+    Nothing -> (sheets !!) <$> liftIO (randomRIO (0, length sheets-1))
   where
   -- choose spartan less often
   sheets = ["spartan", "solid-select", "solid-select"]
