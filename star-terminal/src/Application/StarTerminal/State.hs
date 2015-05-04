@@ -34,9 +34,11 @@ module Application.StarTerminal.State (
   Terminal(Terminal), tId, pubkey, zp0, zi0, z0, postUrl, registerURL,
   -- * The running state of the terminal
   TerminalState(TerminalState), recordedVotes, ballotCodes, terminal,
+  Feedback(..),
   -- * AcidState actions for working with saved TerminalStates
   GetRegisterURL(..), GetTerminalConfig(..), InsertCode(..),
-  LookupBallotStyle(..), RecordVote(..), EncryptRecord(..)
+  LookupBallotStyle(..), RecordVote(..), EncryptRecord(..),
+  RecordFeedback(..), GetFeedback(..)
   ) where
 
 import           Control.Lens
@@ -119,3 +121,16 @@ $(makeAcidic ''TerminalState [ 'getRegisterURL
                              , 'encryptRecord
                              ])
 
+newtype Feedback = Feedback [(UTCTime, Params)]
+  deriving (Eq, Ord, Read, Show, Typeable)
+$(deriveSafeCopy 0 'base ''Feedback)
+
+instance Default Feedback where def = Feedback def
+
+recordFeedback :: (UTCTime, Params) -> Update Feedback ()
+recordFeedback f = modify (\(Feedback fs) -> Feedback (f:fs))
+
+getFeedback :: Query Feedback Feedback
+getFeedback = ask
+
+$(makeAcidic ''Feedback ['recordFeedback, 'getFeedback])

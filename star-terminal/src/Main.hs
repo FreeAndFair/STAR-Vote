@@ -15,7 +15,7 @@ import           Control.Applicative
 import           Control.Monad                       (void)
 import           Control.Exception                   (catch, ErrorCall)
 import           Crypto.Random                       (newGenIO)
-import           Data.Acid                           (openLocalStateFrom, query)
+import           Data.Acid                           (AcidState, openLocalStateFrom, query)
 import qualified Data.Binary                         as Binary
 import qualified Data.ByteString.Base16.Lazy         as B16
 import qualified Data.ByteString.Base64.Lazy         as B64
@@ -50,7 +50,8 @@ import           Application.Star.Util               (statefulErrorServe)
 import           Application.StarTerminal.Controller
 import           Application.StarTerminal.State      (GetRegisterURL (..),
                                                       StarTerm, Terminal (..),
-                                                      TerminalState (..))
+                                                      TerminalState (..),
+                                                      Feedback)
 
 import           Paths_star_terminal                 (getDataFileName)
 
@@ -89,6 +90,10 @@ main = do
   putStrLn $ "The state file is " ++ stateFile ++ ". Delete it to reconfigure the terminal."
   state <- openLocalStateFrom stateFile defaultState
 
+  feedbackFile <- getDataFileName ("feedback" ++ tIdStr)
+  putStrLn $ "Feedback is in " ++ feedbackFile ++ ". Delete it to clear feedback."
+  feedbackState <- openLocalStateFrom feedbackFile def
+
   -- Register own address with the controller.  Read from state
   -- because saved state is more important than environment vars.
   snapConfig <- commandLineConfig mempty :: IO (Config Snap ()) -- dummy type because it doesn't matter here
@@ -96,7 +101,7 @@ main = do
   register regURL' snapConfig
 
   staticDir <- getDataFileName "static"
-  statefulErrorServe (site staticDir) state
+  statefulErrorServe (site staticDir feedbackState) state
 
   where register :: String -> Config m a -> IO ()
         register controllerURL cfg = maybe (error "Can't get host info for registration")
@@ -117,8 +122,8 @@ main = do
 
 
 -- | Defines URLs and request methods associated with each server handler.
-site :: StarTerm m => FilePath -> m ()
-site static =
+site :: StarTerm m => FilePath -> AcidState Feedback -> m ()
+site static feedbackState =
     ifTop (redirect "/ballots") <|>
     route [ ("ballots",                       method GET  askForBallotCode)
           , ("ballots/:code/step/:stepId",    method GET  showBallotStep)
@@ -132,7 +137,7 @@ site static =
           , ("study/welcome",                 method GET  studyWelcome)
           , ("study/about",                   method GET  studyAbout)
           , ("study/stop",                    method GET  studyStop)
-          , ("study/stop",                    method POST studyRecordStopReason)
+          , ("study/stop",                    method POST (studyRecordStopReason feedbackState))
           , ("study/stopped",                 method GET  feedbackThankYou)
           ] <|>
     dir "static" (serveDirectory static) <|>

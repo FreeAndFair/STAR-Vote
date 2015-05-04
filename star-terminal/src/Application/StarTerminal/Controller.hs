@@ -58,6 +58,7 @@ import           Control.Lens
 import           Control.Monad                         (join, when)
 import           Control.Monad.Except                  (MonadError)
 import           Control.Monad.IO.Class                (liftIO)
+import           Data.Acid                             (AcidState, query, update)
 import qualified Data.Aeson                            as JSON
 import           Data.ByteString                       (ByteString)
 import qualified Data.ByteString                       as BS
@@ -358,8 +359,11 @@ studyAbout = do
 studyStop :: StarTerm m => m ()
 studyStop = renderPg (stopView strings)
 
-studyRecordStopReason :: StarTerm m => m ()
-studyRecordStopReason = do -- TODO: actually record their feedback!
+studyRecordStopReason :: StarTerm m => AcidState Feedback -> m ()
+studyRecordStopReason feedbackState = do
+  feedback <- getParams
+  now      <- liftIO getCurrentTime
+  liftIO $ update feedbackState (RecordFeedback (now, feedback))
   redirect "/study/stopped"
 
 feedbackThankYou :: StarTerm m => m ()
