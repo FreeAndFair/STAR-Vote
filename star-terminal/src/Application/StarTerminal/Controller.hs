@@ -79,7 +79,8 @@ import           Network.HTTP.Client                   (Request (..),
                                                         withManager)
 import           Network.HTTP.Client.TLS               (tlsManagerSettings)
 import           Snap.Core                             hiding (method)
-import           System.Random                         (randomIO)
+import           System.Random                         (randomIO, randomRIO)
+import           Text.Blaze                            (AttributeValue)
 import           Text.Blaze.Html5                      (Html)
 
 import           Application.Star.Ballot
@@ -130,16 +131,16 @@ askForBallotCode = do
                     Nothing    -> noCode mJargon
                     Just style -> case mJargon of
                       Nothing -> redirect (e url)
-                      Just u  -> render (pg (ballotInstructionsView (jargonStrings u) url))
+                      Just u  -> renderPg (ballotInstructionsView (jargonStrings u) url)
                       where url = firstStepUrl c style
-  where noCode     = render . pg . noCodeView
+  where noCode     = renderPg . noCodeView
         noCodeView = maybe (codeEntryView strings) (signInView . jargonStrings)
 
 showBallotStep :: StarTerm m => m ()
 showBallotStep = do
   (code, ballotStyle, race) <- ballotStepParams
   s <- getSelection ballotStyle race
-  render (pg (ballotStepView strings (nav code ballotStyle race) ballotStyle race s))
+  renderPg (ballotStepView strings (nav code ballotStyle race) ballotStyle race s)
   where
     nav code style race = NavLinks
       { _prev = ((stepUrl code) . _rId) <$> prevRace style race
@@ -160,7 +161,7 @@ recordBallotSelection = do
 showSummary :: StarTerm m => m ()
 showSummary = do
   (code, style, ballot) <- ballotParams
-  render (pg (summaryView strings code style ballot))
+  renderPg (summaryView strings code style ballot)
 
 -- | Encrypt the vote, send it to the controller, and redirect to a page with instructions
 finalize :: StarTerm m => m ()
@@ -187,14 +188,14 @@ finalize = do
     Nothing -> do
       printPDF ballotContents
       redirect (e (exitInstructionsUrl ballotId))
-    Just useJargon -> render . pg $
+    Just useJargon -> renderPg $
       completionView (jargonStrings useJargon) ballotCastingId
 
 printReceipt :: StarTerm m => m ()
 printReceipt = do url <- fmap (ballotReceiptUrl . BallotId . d) <$> getParam "bid"
                   case url of
                     Nothing -> do404
-                    Just u -> render (pg (printReceiptView u strings))
+                    Just u -> renderPg (printReceiptView u strings)
 
 -- | Send an encrypted vote to the controller
 transmit :: String -> EncryptedRecord -> IO ()
@@ -265,15 +266,39 @@ getBallot code = do
       sel <- getSelection style race
       return $ ((,) race) <$> sel
 
+chooseJargon :: StarTerm m => m Bool
+chooseJargon = do
+  p <- getParam "content"
+  case p of
+    Just p' | p' == "jargon" -> return True
+            | p' == "gentle" -> return False
+    _ -> liftIO randomIO
+
+chooseStylesheet :: StarTerm m => m Text
+chooseStylesheet = do
+  p <- getParam "presentation"
+  case p of
+    Just p' -> return (d p')
+    Nothing -> (sheets !!) <$> liftIO (randomRIO (0, length sheets))
+  where
+  -- choose spartan less often
+  sheets = ["spartan", "solid-select", "solid-select"]
+
 studyWelcome :: StarTerm m => m ()
-studyWelcome = render . pg $ welcomeView strings
+studyWelcome = do
+  useJargon <- chooseJargon
+  sheet     <- chooseStylesheet
+  modifyResponse $ addResponseCookie (jargonCookie     useJargon)
+  modifyResponse $ addResponseCookie (stylesheetCookie sheet    )
+  render . page (stylesheet sheet) (localize "star_terminal" strings) $
+    welcomeView strings
 
 castBCID, spoilBCID :: StarTerm m => BallotCastingId -> m ()
 castBCID bcid = do -- TODO: cast the ballot
-  render (pg (castCompletedView strings))
+  renderPg (castCompletedView strings)
 spoilBCID bcid = do -- TODO: spoil the ballot
   Just useJargon <- getJargonCookie
-  render (pg (spoilCompletedView (jargonStrings useJargon)))
+  renderPg (spoilCompletedView (jargonStrings useJargon))
 
 castBallot :: StarTerm m => m ()
 castBallot = do
@@ -289,7 +314,7 @@ castBallot = do
   where
   internalError = do
     modifyResponse $ setResponseCode 500
-    render (pg internalErrorView)
+    renderPg internalErrorView
 
 jargonCookie :: Bool -> Cookie
 jargonCookie useJargon = Cookie
@@ -306,28 +331,41 @@ getJargonCookie :: MonadSnap m => m (Maybe Bool)
 getJargonCookie = fmap (fmap useJargon) (getCookie "use-jargon")
   where useJargon c = cookieValue c /= "0"
 
+stylesheetCookie :: Text -> Cookie
+stylesheetCookie stylesheet = Cookie
+  { cookieName     = "stylesheet"
+  , cookieValue    = e stylesheet
+  , cookieExpires  = Nothing
+  , cookieDomain   = Nothing
+  , cookiePath     = Just "/"
+  , cookieSecure   = False
+  , cookieHttpOnly = True
+  }
+
+getStylesheetCookie :: MonadSnap m => m AttributeValue
+getStylesheetCookie = maybe defaultStylesheet (stylesheet . d . cookieValue)
+                   <$> getCookie "stylesheet"
+
 jargonStrings :: Bool -> Translations
 jargonStrings useJargon = strings <> if useJargon then jargon else gentle
 
 studyAbout :: StarTerm m => m ()
 studyAbout = do
-  useJargon <- liftIO randomIO
-  modifyResponse $ addResponseCookie (jargonCookie useJargon)
-  render . pg $
-    aboutView (jargonStrings useJargon)
+  mJargon <- getJargonCookie
+  renderPg (aboutView (jargonStrings (maybe False id mJargon)))
 
 studyStop :: StarTerm m => m ()
-studyStop = render (pg (stopView strings))
+studyStop = renderPg (stopView strings)
 
 studyRecordStopReason :: StarTerm m => m ()
 studyRecordStopReason = do -- TODO: actually record their feedback!
   redirect "/study/stopped"
 
 feedbackThankYou :: StarTerm m => m ()
-feedbackThankYou = render (pg (feedbackView strings))
+feedbackThankYou = renderPg (feedbackView strings)
 
 do404 :: StarTerm m => m ()
-do404 = render (pg view404)
+do404 = renderPg view404
 
 param :: StarTerm m => Text -> m (Maybe Text)
 param k = do
@@ -345,8 +383,16 @@ e = encodeUtf8
 d :: ByteString -> Text
 d = decodeUtf8With ignore
 
+renderPage :: StarTerm m => Text -> Html -> m ()
+renderPage title html = do
+  stylesheet <- getStylesheetCookie
+  render (page stylesheet title html)
+
+renderPg :: StarTerm m => Html -> m ()
+renderPg = renderPage (localize "star_terminal" strings)
+
 pg :: Html -> Html
-pg = page (localize "star_terminal" strings)
+pg = page defaultStylesheet (localize "star_terminal" strings)
 
 -- | Adhoc i18n system, for use until a real i18n library is incorporated.
 strings, jargon, gentle :: Translations

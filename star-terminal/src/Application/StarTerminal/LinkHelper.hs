@@ -7,6 +7,7 @@ import           Data.Monoid
 
 import           Data.Text                    (Text)
 import qualified Data.Text                    as T
+import           Text.Blaze                   (AttributeValue, toValue)
 
 import           Application.Star.Ballot
 import           Application.Star.BallotStyle
@@ -49,3 +50,9 @@ signInUrl = "/ballots"
 
 portraitUrl :: Text -> Text
 portraitUrl img = "/static/img/" <> img
+
+defaultStylesheet :: AttributeValue
+defaultStylesheet = stylesheet "site"
+
+stylesheet :: Text -> AttributeValue
+stylesheet s = toValue ("/static/css/" <> s <> ".css")

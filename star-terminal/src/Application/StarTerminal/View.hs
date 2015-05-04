@@ -261,15 +261,15 @@ stopLinkLeft ts = navLinkLeft stopStudyUrl (t "stop" ts)
 
 -- | Page layout -
 -- produces markup that appears on every page.
-page :: Text -> Html -> Html
-page pageTitle pageContent = docTypeHtml ! lang "en" $ do
+page :: AttributeValue -> Text -> Html -> Html
+page css pageTitle pageContent = docTypeHtml ! lang "en" $ do
   H.head $ do
     meta ! charset "utf-8"
     meta ! httpEquiv "X-UA-Compatible" ! content "IE=edge"
     meta ! name "viewport" ! content "width=device-width, initial-scale=1"
     H.title (toHtml pageTitle)
     link ! href "/static/bootstrap-3.2.0-dist/css/bootstrap.min.css" ! rel "stylesheet"
-    link ! href "/static/css/site.css" ! rel "stylesheet"
+    link ! href css ! rel "stylesheet"
     ieShims
   body $ do
     pageContent
