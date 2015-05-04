@@ -46,3 +46,6 @@ aboutStudyUrl = "/study/about"
 
 signInUrl :: Text
 signInUrl = "/ballots"
+
+portraitUrl :: Text -> Text
+portraitUrl img = "/static/img/" <> img

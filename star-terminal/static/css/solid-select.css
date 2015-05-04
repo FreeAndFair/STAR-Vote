@@ -1,0 +1,36 @@
+.summary-item {
+  border-bottom: 1px solid #eee;
+}
+.content { padding-bottom: 10em; }
+input[type="radio"].unlabelled { margin-left: 0px; }
+.party {
+  background: #0f75bc;
+  border-radius: 4px;
+  color: white;
+  padding-left: 4px;
+  padding-right: 4px;
+  text-transform: uppercase;
+  font-weight: bold;
+  font-size: 16px;
+}
+h1 { font-weight: bold; margin-bottom: 0px; }
+.page-header { border-bottom: 0px; margin-bottom: 0px; padding-bottom: 0px; }
+div.portrait { float: left; width: 50px; margin-right: 3em; margin-left: 1em; }
+div.portrait img { width: 50px; }
+label.ballot-option {
+  padding-top: 0.5ex;
+  padding-bottom: 0.5ex;
+  margin-top: 1.5ex;
+  width: 100%;
+}
+.container { font-size: 28px; }
+input.ballot-option { display: none; }
+label.ballot-option                                              { background: #eee;                    }
+input[type="radio"].ballot-option:checked+label                  { background: #0f75bc; color: white;   }
+input[type="radio"].ballot-option:checked+label span.party       { background: white;   color: #0f75bc; }
+input[type="radio"].ballot-option:checked+label small.text-muted {                      color: white;   }
+.candidate-name { font-size: 24px; font-weight: bold; }
+.candidate-occupation { font-size: 16px; }
+.activated .btn { background: #0f75b6; color: white; }
+.study-header { margin-bottom: 4ex; }
+.btn { font-size: 20px !important; }

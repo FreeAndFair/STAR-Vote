@@ -45,6 +45,7 @@ data-files:
   static/bootstrap-3.2.0-dist/js/*.min.js
   static/css/*.css
   static/js/*.js
+  static/img/*.jpg
 
 Executable star-terminal
   hs-source-dirs: src

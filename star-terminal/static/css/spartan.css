@@ -1,0 +1,8 @@
+.summary-item {
+  border-bottom: 1px solid #eee;
+}
+.content { padding-bottom: 10em; }
+input[type="radio"].unlabelled { margin-left: 0px; }
+.party:before { content: "("; }
+.party:after { content: ")"; }
+div.portrait { display: none; }

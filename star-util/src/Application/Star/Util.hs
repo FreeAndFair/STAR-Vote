@@ -204,35 +204,35 @@ exampleBallotStyles =
         { _rDescription = "Oregon Governor"
         , _rId = "gov"
         , _rOptions =
-          [ Option "c1" "Aaron Auer"        (Just "Con") (Just "Minister of the Gospel")
-          , Option "c2" "Tovia E Fornah"    (Just "Non") (Just "Service")
-          , Option "c3" "Paul Grad"         (Just "L")   (Just "Investor")
-          , Option "c4" "Chris Henry"       (Just "P")   Nothing
-          , Option "c5" "John Kitzhaber"    (Just "Dem") (Just "Governor of Oregon")
-          , Option "c6" "Jason Levin"       (Just "Grn") (Just "Cannabis Industry Professional")
-          , Option "c7" "Dennis Richardson" (Just "Rep") (Just "Businessman; State Representative")
+          [ Option "c1" "Aaron Auer"        (Just "aaron_auer.jpg"       ) (Just "Con") (Just "Minister of the Gospel")
+          , Option "c2" "Tovia E Fornah"    (Just "tovia_e_fornah.jpg"   ) (Just "Non") (Just "Service")
+          , Option "c3" "Paul Grad"         (Just "paul_grad.jpg"        ) (Just "L")   (Just "Investor")
+          , Option "c4" "Chris Henry"       Nothing                        (Just "P")   Nothing
+          , Option "c5" "John Kitzhaber"    (Just "john_kitzhaber.jpg"   ) (Just "Dem") (Just "Governor of Oregon")
+          , Option "c6" "Jason Levin"       (Just "jason_levin.jpg"      ) (Just "Grn") (Just "Cannabis Industry Professional")
+          , Option "c7" "Dennis Richardson" (Just "dennis_richardson.jpg") (Just "Rep") (Just "Businessman; State Representative")
           ]
         }
       , Race
         { _rDescription = "US Senator"
         , _rId = "senate"
         , _rOptions =
-          [ Option "s1" "James E. Leuenberger" (Just "Con") Nothing
-          , Option "s2" "Christina Jean Lugo"  (Just "Grn") (Just "Artist, Peace Activist")
-          , Option "s3" "Jeff Merkley"         (Just "Dem") (Just "United States Senator")
-          , Option "s4" "Mike Montchalin"      (Just "L")   (Just "Candidate/Retired")
-          , Option "s5" "Monica Wehby"         (Just "Rep") (Just "Pediatric Neurosurgeon")
+          [ Option "s1" "James E. Leuenberger" (Just "james_e_leuenberger.jpg") (Just "Con") Nothing
+          , Option "s2" "Christina Jean Lugo"  (Just "christina_jean_lugo.jpg") (Just "Grn") (Just "Artist, Peace Activist")
+          , Option "s3" "Jeff Merkley"         (Just "jeff_merkley.jpg"       ) (Just "Dem") (Just "United States Senator")
+          , Option "s4" "Mike Montchalin"      (Just "mike_montchalin.jpg"    ) (Just "L")   (Just "Candidate/Retired")
+          , Option "s5" "Monica Wehby"         (Just "monica_wehby.jpg"       ) (Just "Rep") (Just "Pediatric Neurosurgeon")
           ]
         }
       , Race
         { _rDescription = "US Representative, 3rd District"
         , _rId = "rep_3"
         , _rOptions =
-          [ Option "r1" "Earl Blumenauer"  (Just "Dem") (Just "U.S. Congressman")
-          , Option "r2" "James Buchal"     (Just "Rep") (Just "Attorney")
-          , Option "r3" "Jeffrey J Langan" (Just "L")   Nothing
-          , Option "r4" "Michael Meo"      (Just "Grn") (Just "retired schoolteacher")
-          , Option "r5" "David Walker"     (Just "Non") (Just "Family Nurse Practitioner")
+          [ Option "r1" "Earl Blumenauer"  (Just "earl_blumenauer.jpg" ) (Just "Dem") (Just "U.S. Congressman")
+          , Option "r2" "James Buchal"     Nothing                       (Just "Rep") (Just "Attorney")
+          , Option "r3" "Jeffrey J Langan" (Just "jeffrey_j_langan.jpg") (Just "L")   Nothing
+          , Option "r4" "Michael Meo"      (Just "michael_meo.jpg"     ) (Just "Grn") (Just "retired schoolteacher")
+          , Option "r5" "David Walker"     (Just "david_walker.jpg"    ) (Just "Non") (Just "Family Nurse Practitioner")
           ]
         }
       ]

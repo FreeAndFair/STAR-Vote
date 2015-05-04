@@ -30,6 +30,7 @@ type BallotKey = Text
 data Option = Option
   { _oId         :: OptionId
   , _oName       :: Text
+  , _oImg        :: Maybe Text
   , _oParty      :: Maybe Text
   , _oOccupation :: Maybe Text
   }

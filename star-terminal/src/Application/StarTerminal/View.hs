@@ -72,16 +72,20 @@ ballotStepView ts navLinks bStyle r s = withNav ts navLinks $
           (t "submit" ts)
 
 ballotOptionView :: Translations -> Maybe Selection -> Option -> Html
-ballotOptionView _ s o = do
+ballotOptionView ts s o = do
   input ! type_ "radio" ! name "selection" ! class_ "ballot-option unlabelled" ! value k ! isChecked ! A.id k
-  labelEmptyOnclick ! for k $ do
+  labelEmptyOnclick ! for k ! class_ "ballot-option" $ do
+    div ! class_ "portrait" $ do
+      maybe noPortrait portrait (_oImg o)
     H.span $ do
       selectionDescription o
     br
-    small ! class_ "text-muted" $ do
+    small ! class_ "candidate-occupation text-muted" $ do
       maybe nbsp toHtml (_oOccupation o)
   br
   where
+    portrait imgName = img ! alt (toValue (localize "portrait"    ts)) ! src (toValue (portraitUrl imgName          ))
+    noPortrait       = img ! alt (toValue (localize "no_portrait" ts)) ! src (toValue (portraitUrl "no_portrait.jpg"))
     k = toValue (_oId o)
     isChecked = case s of
       Just s' -> if s' == _oId o then checked "checked" else mempty
@@ -95,9 +99,9 @@ internalErrorView = "Internal error"
 
 selectionDescription :: Option -> Html
 selectionDescription o = do
-  toHtml (_oName o)
+  H.span ! class_ "candidate-name" $ toHtml (_oName o)
   whitespace
-  maybe mempty (\party -> toHtml (T.concat ["(", party, ")"])) (_oParty o)
+  maybe mempty (\party -> H.span ! class_ "party" $ toHtml party) (_oParty o)
 
 -- | After ballot steps are complete,
 -- displays summary of selections that the voter has made.
@@ -137,10 +141,14 @@ printReceiptView url ts =
       h1 (t "successful_vote" ts)
     p (t "collect_ballot_and_receipt" ts)
 
+studyHeader :: Translations -> Text -> Html
+studyHeader ts msg = div ! class_ "page-header study-header" $ do
+  h1 (t msg ts)
+
 welcomeView :: Translations -> Html
 welcomeView ts =
   div ! class_ "container" $ do
-    h1 (t "welcome_to_study" ts)
+    studyHeader ts "welcome_to_study"
     mapM_ (p . toHtml) . T.lines $ localize "study_description" ts
     bottomNav $ do
       navLinkLeft  stopStudyUrl  (t "not_ready_to_begin" ts)
@@ -149,7 +157,7 @@ welcomeView ts =
 aboutView :: Translations -> Html
 aboutView ts =
   div ! class_ "container" $ do
-    h1 (t "about_the_prototype" ts)
+    studyHeader ts "about_the_prototype"
     p (t "special_feature_intro" ts)
     ul . mapM_ (li . toHtml) . T.lines $ localize "special_feature_bullets" ts
     p (t "special_feature_outro" ts)
@@ -160,7 +168,7 @@ aboutView ts =
 signInView :: Translations -> Html
 signInView ts =
   div ! class_ "container" $ do
-    h1 (t "sign_in" ts)
+    studyHeader ts "sign_in"
     p (t "enter_email_code" ts)
     H.form ! role "form" ! A.method "get" $ do
       input ! type_ "text" ! name "code"
@@ -173,7 +181,7 @@ signInView ts =
 ballotInstructionsView :: Translations -> Text -> Html
 ballotInstructionsView ts url =
   div ! class_ "container" $ do
-    h1 (t "filling_out_your_ballot" ts)
+    studyHeader ts "filling_out_your_ballot"
     p  (t "mock_election"           ts)
     p  (t "verify_your_vote"        ts)
     bottomNav $ do
@@ -183,7 +191,7 @@ ballotInstructionsView ts url =
 completionView :: Translations -> BallotCastingId -> Html
 completionView ts bcid =
   div ! class_ "container" $ do
-    h1 (t "ballot_complete" ts)
+    studyHeader ts "ballot_complete"
     p  (t "congratulations" ts)
     p  (t "cast_or_spoil"   ts)
     H.form ! role "form" ! A.method "post" ! action "/cast" $ do
@@ -204,14 +212,14 @@ completionView ts bcid =
 castCompletedView :: Translations -> Html
 castCompletedView ts =
   div ! class_ "container" $ do
-    h1 (t "you_voted" ts)
+    studyHeader ts "you_voted"
     p  (t "thank_you" ts)
     p  (t "answer_questions" ts)
 
 spoilCompletedView :: Translations -> Html
 spoilCompletedView ts =
   div ! class_ "container" $ do
-    h1 (t "spoiled_ballot" ts)
+    studyHeader ts "spoiled_ballot"
     p  (t "spoiled_explanation" ts)
     bottomNav $ do
       navLinkLeft stopStudyUrl (t "exit_study" ts)
@@ -220,7 +228,7 @@ spoilCompletedView ts =
 stopView :: Translations -> Html
 stopView ts =
   div ! class_ "container" $ do
-    h1 (t "thank_you_for_participation" ts)
+    studyHeader ts "thank_you_for_participation"
     p  (t "why_stop" ts)
     H.form ! role "form" ! A.method "post" $ do
       forM_ reasons $ \(ix, reason) -> div $ do
@@ -246,7 +254,7 @@ stopView ts =
 feedbackView :: Translations -> Html
 feedbackView ts =
   div ! class_ "container" $ do
-    h1 (t "feedback_is_nice" ts)
+    studyHeader ts "feedback_is_nice"
 
 stopLinkLeft :: Translations -> Html
 stopLinkLeft ts = navLinkLeft stopStudyUrl (t "stop" ts)

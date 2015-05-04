@@ -376,7 +376,7 @@ strings = translations
   , ("sign_in_button", "Sign in")
   , ("filling_out_your_ballot", "Filling out your ballot")
   , ("mock_election", "For this study, we have a mock election with three races and several candidates for each race.")
-  , ("select_candidate", "Select a candidate for this race.")
+  , ("select_candidate", "Select a candidate and press \"next step\".")
   , ("ballot_complete", "Ballot complete")
   , ("congratulations", "Congratulations, you have completed this ballot.")
   , ("thank_you", "Thank you for casting your ballot.")
@@ -389,6 +389,8 @@ strings = translations
   , ("reasons_for_stopping", "Too busy\nStudy does not look interesting\nI am already confused at this point")
   , ("other_reason_for_stopping", "Other:")
   , ("feedback_is_nice", "Your feedback is appreciated!")
+  , ("portrait", "portrait")
+  , ("no_portrait", "no portrait available")
   ]
 
 jargon = strings <> translations

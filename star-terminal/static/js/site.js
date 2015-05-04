@@ -19,10 +19,17 @@
     document.cookie = kv + path + sec;
   }
 
+  function highlightButton() {
+    var button = document.querySelectorAll(".navbar-right")[0];
+    if(button.className.match(/\bactivated\b/) === null)
+      button.className += " activated";
+  }
+
   document.addEventListener('change', function(event) {
     var raceKey = getRaceKey();
     getSelection().forEach(function(value) {
       record(raceKey, value);
+      highlightButton();
     });
   }, false);
 
