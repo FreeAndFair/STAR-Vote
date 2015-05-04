@@ -128,8 +128,9 @@ site static =
           , ("receipt/:bid",                  method GET  printReceipt)
           , ("ballots/:ballotId/codes/:code", method POST recordBallotStyleCode)
           , ("cast",                          method POST castBallot)
+          -- TODO: studyWelcome should really be a POST, since it sets a cookie that changes behavior
           , ("study/welcome",                 method GET  studyWelcome)
-          , ("study/about",                   method GET  studyAbout) -- TODO: should really be a POST!
+          , ("study/about",                   method GET  studyAbout)
           , ("study/stop",                    method GET  studyStop)
           , ("study/stop",                    method POST studyRecordStopReason)
           , ("study/stopped",                 method GET  feedbackThankYou)
