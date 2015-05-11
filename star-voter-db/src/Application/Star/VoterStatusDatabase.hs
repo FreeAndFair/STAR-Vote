@@ -29,17 +29,21 @@ import Control.Monad.Trans.Maybe
 
 import Control.Arrow
 import Data.List
+import Data.Foldable (foldMap)
 import Data.Traversable
 import Numeric
 
 import qualified Data.ByteString.Lazy as LBS
 import qualified Data.ByteString as BS
+import qualified Data.Csv        as CSV
 import qualified Data.Map.Strict as M
 import qualified Data.Text       as T
+import qualified Data.Vector     as V
 
 import qualified Text.Blaze.Html5 as H
 import qualified Text.Blaze.Html5.Attributes as A
 
+import Data.Vector (Vector)
 import Text.Blaze.Html5 ((!))
 
 import Text.Digestive
@@ -330,17 +334,37 @@ markVotedPage = do
                     "."
            H.p $ H.a ! A.href "/search" $ "Another"
 
+instance CSV.FromField (ID a) where parseField f = ID <$> CSV.parseField f
+
+initializePage :: MonadSnap m => m ()
+initializePage = render . pageHtml . starPageWithContents "Voter Database Initialization" $ do
+  H.form ! A.method "post" $ do
+    H.p instructions
+    H.textarea ! A.cols "80" ! A.rows "10" ! A.name "csv" $ defaultDB
+    H.br
+    H.button "Submit"
+  where
+  instructions = "Enter voters in CSV format; the columns are voter ID, name, address, precinct ID, and ballot style (in that order)."
+  defaultDB = "1,John Doe,Nowhereland,1,oregon-2014\n2,Jane Doe,Stix,2,oregon-2014\n"
+
+buildDBFromCSV :: Vector (ID Voter, Text, Text, ID Precinct, BallotStyleId) -> StatusDB
+buildDBFromCSV csv = buildStatusDB (foldMap getVoter csv) (foldMap getBallot csv) where
+  getVoter (voterID, name, address, _, _) = [(voterID, Voter name address)]
+  getBallot (voterID, _, _, precinctID, ballotStyleID) = [(voterID, precinctID, ballotStyleID)]
+
 voterStatusDB :: (MonadSnap m, MonadError Text m, MonadAcidState StatusDB m) => m ()
 voterStatusDB =
   ifTop index <|>
   route
     [ ("initialize", method POST $ do
-      ids <- readBodyParam "voterids"
-      dbData <- readBodyParam "voterstatus"
-      let db = buildStatusDB ids dbData
-      doUpdate $ InitializeDB db
-      writeShow ("new DB: " ++ show db)
+      csv_ <- getParam "csv"
+      case csv_ of
+        Nothing  -> writeShow "expecting some CSV data in the csv parameter"
+        Just csv -> case CSV.decode CSV.NoHeader (LBS.fromStrict csv) of
+          Left err -> writeShow err
+          Right db -> doUpdate . InitializeDB . buildDBFromCSV $ db
       )
+    , ("initialize", method GET initializePage)
     , ("search", method GET search)
     , ("sticker", method GET stickerPage)
     , ("add-provisional", addProvisionalForm)

@@ -63,9 +63,7 @@ Summary:
     B localhost:8001/initialize.html
     $ nano star-terminal/start.sh
     $ star-voter-db -b :: -p 8002
-    $ curl -X POST localhost:8002/initialize \
-        -d voterids='[(3,Voter {_voterName="John Doe", _voterAddress = "Nowhereland"}),(5,Voter {_voterName = "Jane Doe", _voterAddress = "Stix"})]' \
-        -d voterstatus='[(3,5,"oregon-2014"),(5,6,"oregon-2014")]'
+    B localhost:8002/initialize
     $ star-controller -b :: -p 8003
     $ lpoptions -d default_printer
     $ star-terminal/start.sh
@@ -89,22 +87,14 @@ Summary:
     to election officials; these are needed during the vote tallying step
     below. For the purposes of a mock election, one might simply paste them
     into a file for storage until later.
-
 3.  Initialize the voter status database. Run `star-voter-db -b :: -p 8002`
     to start the server on port 8002. You will then need to tell the
-    database about all your voters. Below is a sample with some
-    synthetic data:
-
-        curl -X POST localhost:8002/initialize \
-            -d voterids='[(3,Voter {_voterName="John Doe", _voterAddress = "Nowhereland"}),(5,Voter {_voterName = "Jane Doe", _voterAddress = "Stix"})]' \
-            -d voterstatus='[(3,5,"oregon-2014"),(5,6,"oregon-2014")]'
-
-    The `voterids` parameter associates voter IDs with the name and address of
-    the voter. The `voterstatus` parameter associates voter IDs with their
-    precinct number and the kind of ballot they need to use. The example data
-    here puts John Doe in precinct 5 and Jane Doe in precinct 6, both with the
-    `oregon-2014` ballot style. Currently `oregon-2014` is the only supported
-    ballot style (see `star-util/src/Application/Star/Util.hs`).
+    database about all your voters by visiting `localhost:8002/initialize`.
+    This will present you with an option to enter your database in CSV format.
+    It defaults to a simple sample database that puts puts John Doe in precinct
+    1 and Jane Doe in precinct 2, both with the `oregon-2014` ballot style.
+    Currently `oregon-2014` is the only supported ballot style (see
+    `star-util/src/Application/Star/Util.hs`).
 4.  Start the controller on port 8003 with `star-controller -b :: -p 8003`.
 5.  Configure the default printer for `lp`. You can check the current default
     with `lpstat -p -d` (which will also list the names of non-default
