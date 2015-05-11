@@ -363,6 +363,7 @@ voterStatusDB =
         Just csv -> case CSV.decode CSV.NoHeader (LBS.fromStrict csv) of
           Left err -> writeShow err
           Right db -> doUpdate . InitializeDB . buildDBFromCSV $ db
+      -- TODO: respond
       )
     , ("initialize", method GET initializePage)
     , ("search", method GET search)
