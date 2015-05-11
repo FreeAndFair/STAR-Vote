@@ -134,12 +134,19 @@ summaryItemView _ code bStyle race ballot =
     rId = _rId race
 
 -- | Message that is shown after a ballot has been finalized.
-printReceiptView :: Text -> Translations -> Html
-printReceiptView url ts =
+printReceiptView :: Text -> Text -> Translations -> Html
+printReceiptView receiptUrl ballotUrl ts =
   div ! class_ "container" $ do
     div ! class_ "page-header" $ do
       h1 (t "successful_vote" ts)
     p (t "collect_ballot_and_receipt" ts)
+    let (preamble, continuation) = T.breakOn "%s" (localize "click_for_ballot" ts)
+        (link, postamble_)       = T.breakOn "%s" (T.drop 2 continuation)
+        postamble                = T.drop 2 postamble_
+    p $ do
+      toHtml preamble
+      a ! href (toValue ballotUrl) $ toHtml link
+      toHtml postamble
 
 studyHeader :: Translations -> Text -> Html
 studyHeader ts msg = div ! class_ "page-header study-header" $ do

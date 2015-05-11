@@ -33,11 +33,15 @@ progressUrl code _ = mconcat ["/ballots/", T.pack (show code), "/progress"]
 summaryUrl :: BallotCode -> Text
 summaryUrl code = mconcat ["/ballots/", T.pack (show code), "/summary"]
 
-exitInstructionsUrl :: BallotId -> Text
-exitInstructionsUrl (BallotId code) = mconcat ["/receipt/", code, "/"]
+exitInstructionsUrl :: BallotId -> BallotCastingId -> Text
+exitInstructionsUrl (BallotId code) (BallotCastingId bcid)
+  = mconcat ["/receipt/", code, "/", bcid]
 
 ballotReceiptUrl :: BallotId -> Text
 ballotReceiptUrl (BallotId code) = mconcat ["/receipt/", code, "/print"]
+
+ballotUrl :: BallotCastingId -> Text
+ballotUrl (BallotCastingId bcid) = mconcat ["/ballots/", bcid, "/paper.pdf"]
 
 stopStudyUrl :: Text
 stopStudyUrl = "/study/stop"

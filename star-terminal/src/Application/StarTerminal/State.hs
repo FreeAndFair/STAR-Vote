@@ -37,8 +37,8 @@ module Application.StarTerminal.State (
   Feedback(..),
   -- * AcidState actions for working with saved TerminalStates
   GetRegisterURL(..), GetTerminalConfig(..), InsertCode(..),
-  LookupBallotStyle(..), RecordVote(..), EncryptRecord(..),
-  RecordFeedback(..), GetFeedback(..)
+  LookupBallotStyle(..), RecordVote(..), BallotFor(..),
+  EncryptRecord(..), RecordFeedback(..), GetFeedback(..)
   ) where
 
 import           Control.Lens
@@ -68,6 +68,13 @@ data TerminalState = TerminalState
     -- make it easy to verify that each vote incorporates a hash of the
     -- previous.
     _recordedVotes :: [EncryptedRecord]
+    -- TODO: _lastBallot should *not* be included in a production system. On
+    -- the test system, it is used as an alternative to printing: the terminal
+    -- exit instructions include a link to a page that displays this ballot.
+    -- But leaving such a link visible to the next voter in a production system
+    -- would be a severe privacy leak.
+    -- | The last paper ballot that was printed.
+  , _lastBallot    :: Maybe (BallotCastingId, LB.ByteString)
     -- | Mappings from ballot codes to ballot styles are transmitted to each
     -- terminal when voters check in at a polling place.
     -- Voters enter a code in a terminal to retrieve the appropriate ballot
@@ -102,8 +109,19 @@ insertCode code style = modify $ set (ballotCodes . at code) (Just style)
 lookupBallotStyle :: BallotCode -> Query TerminalState (Maybe BallotStyle)
 lookupBallotStyle code = view (ballotCodes . at code) <$> ask
 
-recordVote :: EncryptedRecord -> Update TerminalState ()
-recordVote record = modify $ over recordedVotes (record :)
+recordVote :: EncryptedRecord -> LB.ByteString -> Update TerminalState ()
+recordVote record ballot = do
+  modify $ over recordedVotes (record :)
+  modify $ set  lastBallot    (Just (view bcid record, ballot))
+
+ballotFor :: BallotCastingId -> Query TerminalState (Maybe LB.ByteString)
+ballotFor bcid = do
+  last <- asks (view lastBallot)
+  return $ case last of
+    Nothing -> Nothing
+    Just (bcid', contents)
+      | bcid == bcid' -> Just contents
+      | otherwise     -> Nothing
 
 getTerminalConfig :: Query TerminalState Terminal
 getTerminalConfig = view terminal <$> ask
@@ -118,6 +136,7 @@ $(makeAcidic ''TerminalState [ 'getRegisterURL
                              , 'insertCode
                              , 'lookupBallotStyle
                              , 'recordVote
+                             , 'ballotFor
                              , 'encryptRecord
                              ])
 

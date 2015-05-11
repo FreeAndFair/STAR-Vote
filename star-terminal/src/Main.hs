@@ -84,7 +84,7 @@ main = do
   checkDecoding "STAR_PUBLIC_SALT"        z0
 
   let term = Terminal tId pubkey zp zi z0 voteURL regURL
-      defaultState = TerminalState def def term seed
+      defaultState = TerminalState def def def term seed
 
   stateFile <- getDataFileName ("terminalState" ++ tIdStr)
   putStrLn $ "The state file is " ++ stateFile ++ ". Delete it to reconfigure the terminal."
@@ -130,8 +130,9 @@ site static feedbackState =
           , ("ballots/:code/step/:stepId",    method POST recordBallotSelection)
           , ("ballots/:code/summary",         method GET  showSummary)
           , ("ballots/:code/summary",         method POST finalize)
-          , ("receipt/:bid",                  method GET  printReceipt)
+          , ("receipt/:bid/:bcid",            method GET  printReceipt)
           , ("ballots/:ballotId/codes/:code", method POST recordBallotStyleCode)
+          , ("ballots/:bcid/paper.pdf",       method GET  showPaperBallot)
           , ("cast",                          method POST castBallot)
           -- TODO: studyWelcome should really be a POST, since it sets a cookie that changes behavior
           , ("study/welcome",                 method GET  studyWelcome)

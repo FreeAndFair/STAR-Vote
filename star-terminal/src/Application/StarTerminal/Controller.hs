@@ -183,21 +183,29 @@ finalize = do
                              ballot
   now             <- liftIO getCurrentTime
   ballotContents  <- paperBallot ballot ballotId style record term now
-  doUpdate $ RecordVote record
+  doUpdate $ RecordVote record ballotContents
   liftIO $ transmit (view postUrl term) record
   mUseJargon <- getJargonCookie
   case mUseJargon of
     Nothing -> do
       printPDF ballotContents
-      redirect (e (exitInstructionsUrl ballotId))
+      redirect (e (exitInstructionsUrl ballotId ballotCastingId))
     Just useJargon -> renderPg $
       completionView (jargonStrings useJargon) ballotCastingId
 
 printReceipt :: StarTerm m => m ()
-printReceipt = do url <- fmap (ballotReceiptUrl . BallotId . d) <$> getParam "bid"
-                  case url of
+printReceipt = do receipt <- fmap (ballotReceiptUrl . BallotId . d) <$> getParam "bid"
+                  ballot  <- fmap (ballotUrl . BallotCastingId . d) <$> getParam "bcid"
+                  case liftA2 (,) receipt ballot of
                     Nothing -> do404
-                    Just u -> renderPg (printReceiptView u strings)
+                    Just (receipt, ballot) -> renderPg (printReceiptView receipt ballot strings)
+
+showPaperBallot :: StarTerm m => m ()
+showPaperBallot = do
+  mbcid <- fmap (BallotCastingId . d) <$> getParam "bcid"
+  case mbcid of
+    Nothing -> do404
+    Just bcid -> doQuery (BallotFor bcid) >>= maybe do404 writeLBS
 
 -- | Send an encrypted vote to the controller
 transmit :: String -> EncryptedRecord -> IO ()
@@ -442,6 +450,7 @@ strings = translations
   , ("feedback_is_nice", "Your feedback is appreciated!")
   , ("portrait", "portrait")
   , ("no_portrait", "no portrait available")
+  , ("click_for_ballot", "%sClick here%s to view your ballot on-screen.")
   ]
 
 jargon = strings <> translations
