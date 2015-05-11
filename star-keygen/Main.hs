@@ -131,11 +131,11 @@ republish bbKey = do
   publishKey bbKey (public :: TEGPublicKey) (Shares shares)
 
 publishKey bbKey public (Shares shares) = do
-  let encPub = B64.encode . Binary.encode $ public
-  bbResult <- postpone . post bbKey $ "public key " <> (Text.decodeUtf8 . mconcat . BS.toChunks) encPub
+  let encPub = Text.decodeUtf8 . mconcat . BS.toChunks . B64.encode . Binary.encode $ public
+  bbResult <- postpone . post bbKey $ "public key " <> encPub
   page "Shares" $ do
     table $ do
-      entry "public key" encPub
+      entry_ "public key" encPub
       forM_ (assocs shares) $ \e@(i, _) ->
         entry ("private key share " <> fromString (show i)) e
     case bbResult of
@@ -147,7 +147,8 @@ publishKey bbKey public (Shares shares) = do
           input ! type_ "submit" ! value "try again"
       Right _ -> p "Public key successfully published."
   where
-  entry  k v = tr (td k >> (td . fromString . show) v)
+  entry_ k v = tr (td k >> td (toHtml v))
+  entry  k v = entry_ k (show v)
   hidden k v = input ! type_ "hidden" ! name k ! (value . fromString . show) v
 
 registerForm = do
