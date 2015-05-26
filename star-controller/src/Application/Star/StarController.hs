@@ -433,7 +433,3 @@ broadcast code styleID =
     errorT (Left  e) = throwError . T.pack . show $ e
     errorT (Right v) = return v
     post r = withManager tlsManagerSettings (httpNoBody r { HTTP.method = "POST" })
-
-
-
-
