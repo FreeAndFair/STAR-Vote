@@ -65,7 +65,10 @@ keyUnchanged new = runExceptT $ do
     Nothing  -> put . PossibleKey . Just $ new
     Just old -> unless (old == new) (throwError "Yikes, the bulletin board key has changed out from under us! Something is very wrong.")
 
-makeAcidic ''PossibleKey ['keyUnchanged]
+scheduleRefetch :: Update PossibleKey ()
+scheduleRefetch = put def
+
+makeAcidic ''PossibleKey ['keyUnchanged, 'scheduleRefetch]
 -- }}}
 
 main :: IO ()
@@ -84,7 +87,7 @@ main = do
     [ methodName GET  "initialize.html" quorumConfiguration
     , methodName POST "initialize.html" (generateShares bbKey)
     , methodName GET  "register.html"   registerForm
-    , methodName POST "register.html"   register
+    , methodName POST "register.html"   (register bbKey)
     , methodName POST "republish.html"  (republish bbKey)
     ]
 
@@ -160,14 +163,21 @@ registerForm = do
       , "as", Text.unpack name
       , "with public key", show pub
       ]
-    form ! Attr.method "POST" $
-      Tag.div (input ! type_ "submit" ! value "register")
+    p $ "When the bulletin board is reset, it picks a new key which should be re-fetched. However, if the board picks a new key at any other time, that is a sign of tampering and should not be masked by re-fetching the new key."
+    form ! Attr.method "POST" $ do
+      Tag.div (input ! type_ "submit" ! Attr.name "action" ! value "register")
+      Tag.div (input ! type_ "submit" ! Attr.name "action" ! value "register and refetch")
 
-register = do
+register bbKey = do
   BB.Author name pub <- asks author
   url <- asks (endpoint "register")
+  refetch <- (Just "register and refetch" ==) <$> getParam "action"
+  when refetch (liftIO $ update bbKey ScheduleRefetch)
   postJSON_ url (name, pub)
-  page "Registered" $ p "Registration complete. Check the BB's list of users to verify."
+  page "Registered" $ do
+    p "Registration complete. Check the BB's list of users to verify."
+    when refetch $ do
+      p "Successfully scheduled a refetch of the BB's key. It will be performed on the next communication with the BB."
 
 methodName method_ name action = (name, method method_ action)
 
