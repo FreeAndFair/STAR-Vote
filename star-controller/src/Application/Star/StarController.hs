@@ -196,9 +196,14 @@ readEntireBallotBox = view ballotBox <$> ask
 addURL :: String -> Update ControllerState ()
 addURL url = modify $ over broadcastURLs (url:)
 
+clearState :: Update ControllerState ()
+clearState = modify $ clear broadcastURLs . clear ballotStyles . clear ballotBox
+  where clear l = set l def
+
 $(makeAcidic ''ControllerState [ 'generateCode
                                , 'minimalCode
                                , 'reseed
+                               , 'clearState
                                , 'getBroadcastURLs
                                , 'fillOut
                                , 'setUnknownBallotTo
@@ -328,6 +333,11 @@ controller = liftIO (getDataFileName "static") >>= \static ->
         Just bs -> return . Binary.decode . BS.fromStrict . B64.decodeLenient $ bs
       sharesForm params
     )
+  , ("clear", method GET  clearForm <|>
+              method POST (do
+      doUpdate ClearState
+      reportCleared)
+    )
   ]
 
 page :: MonadSnap m => Text -> H.Html -> m ()
@@ -418,6 +428,16 @@ sharesForm params = page "Vote decryption, part 2/3" $ do
     H.input ! A.type_ "submit" ! A.value "combine shares"
 
 shareName i = fromString ("share" <> show i)
+
+clearForm, reportCleared :: MonadSnap m => m ()
+clearForm = page "Controller reset confirmation" $ do
+  H.p "This will reset the list of terminals to broadcast to, the known ballot codes, and the empty the ballot box."
+  H.p "Are you sure you want to do this?"
+  H.form ! A.method "POST" $ do
+    H.input ! A.type_ "submit" ! A.value "reset controller"
+
+reportCleared = page "Controller state cleared" $ do
+  H.p "All state successfully cleared."
 
 
 broadcast :: (MonadAcidState ControllerState m, MonadError Text m, MonadSnap m)

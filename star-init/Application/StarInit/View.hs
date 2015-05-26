@@ -51,6 +51,9 @@ instructionsView = do
       a ! href "/subsystems/controller/start" $ do
         "Start the polling booth controller."
     li $ do
+      a ! href "localhost:8003/clear" $ do
+        "Clear the polling booth controller."
+    li $ do
       a ! href "/subsystems/terminal/start" $ do
         "Start the voting terminal."
   h2 "Running the election"
