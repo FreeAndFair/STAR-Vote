@@ -182,7 +182,7 @@ decodeFromInteger :: Binary a => Integer -> Either String a
 decodeFromInteger n = do
   bytes <- case reverse (digitsOf n) of
     255:bytes -> return bytes
-    _ -> Left "Magic number mismatch"
+    _ -> Left "Magic number mismatch; perhaps you are using the wrong decryption key"
   case B.decodeOrFail (BS.pack bytes) of
     Left (_, bo, err) -> Left (err ++ " at position " ++ show bo)
     Right (bs, bo, a) | BS.null bs -> return a
