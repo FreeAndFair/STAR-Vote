@@ -1,0 +1,121 @@
+-- system components {{{
+controller
+epollbook
+	look up status, record status, find precinct + ballot style, print sticker with precinct and ballot style
+voting terminal
+paper ballot review station
+physical ballot box
+provisional ballot box
+bulletin board
+TPM
+polling location network
+	perhaps best BON'd as a cluster pointing at the components that are on the network
+-- TODO: is there (or shall we name) a component responsible for the tallying
+-- process?
+-- }}}
+-- data munged by the system {{{
+-- properties/adjectives {{{
+active vs inactive
+	possible states of voting codes
+empty vs full
+	describes ballots in various stages of the voting process
+well-formed vs ill-formed
+	whether a ballot has overvotes/undervotes and matches its ballot style
+-- }}}
+voter status
+	registered, checked in, provisional
+casting status
+	unknown, cast, spoiled
+ballot style
+voting code
+	5-digit code used to "identify" a voter/session inside the polling location network
+ballot serial number
+	== ballot casting ID, I think?
+voting terminal ID
+verifiable voting commitment
+	maybe should be called "verifiable ballot commitment"
+	hash code of the encrypted ballot contents
+encrypted ballot
+cryptographic key
+trustee private key
+election public key
+selections
+NIZK proof
+signature key
+digital signature
+vote
+	cast ballot
+electronic ballot
+encrypted tally
+ballot summary
+	listing of selections for each race
+	shown by voting terminal before producing physical ballot
+internal hash chain
+public hash chain
+	maybe not needed, since it's not used anywhere?
+ballot ID
+ballot casting ID
+hash chain link
+-- }}}
+-- physical artifacts munged by the system {{{
+pollbook sticker
+voting code slip
+physical pollbook
+paper ballot
+voting receipt
+	maybe should be called "committed ballot receipt"
+verifiable decryption
+-- }}}
+-- actions taken by participants in the system {{{
+-- TODO: perhaps this should be fleshed out by walking through the whole
+-- election process and naming every stage/thing that gets done by any party
+cast
+spoil
+risk-limiting audit
+hash
+encrypt
+shuffle
+-- added not from text of the paper but by walking through the election process
+-- in my head:
+generate election keys
+generate signature keys
+initialize internal hash chain
+initialize public hash chain
+populate epollbook
+register
+fill out ballot
+publish voting record
+verify vote inclusion
+verify encrypted vote tally
+decrypt vote tally
+verify plaintext vote tally
+-- }}}
+-- ideas that incidentally need to be defined, but aren't really core to the guarantees/properties/implementation of the system {{{
+voter
+polling location
+precinct
+poll worker
+provisional voter
+time
+date
+election trustee
+race
+write-in candidate
+undervote
+-- }}}
+threshold
+	...of election trustees needed to finalize an election
+election outcome evidence
+write-in slot
+
+-- requirements I had forgotten about {{{
+battery life
+long ballots
+physical ballot box must reject provisional ballots
+privilege separation
+auditory interface
+voter-supplied hardware support
+pretty much all of section 4.2
+ballots must be automatically spoiled after a bit
+no data shared between receipt and paper ballot
+-- }}}

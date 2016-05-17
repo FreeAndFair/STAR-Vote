@@ -1,0 +1,362 @@
+system_chart STAR_VOTE
+  explanation
+    "A voting system which facilitates voter and third-party verification \
+    \without compromising vote privacy."
+  cluster COMPONENTS
+    description
+      "Independent pieces of software which must be run during an election."
+  cluster TYPES
+    description
+      "The different kinds of data that are stored, transmitted, or otherwise \
+      \manipulated by the system."
+  cluster ARTIFACTS
+    description
+      "Physical objects that are produced, consumed, tracked, or otherwise \
+      \manipulated by the system."
+end
+
+-- TODO: network connectivity constraints?
+
+-- TODO: It's not easy to decide whether to make "component" refer to a piece
+-- of software or the process that is running that software. I've chosen to use
+-- it to refer to the process running the software, but this makes it difficult
+-- to talk about some things such as the system requirement for process
+-- separation.
+cluster_chart COMPONENTS
+  explanation
+    "Each component is an independent software process."
+  -- Logically I would like these classes to come after the
+  -- POLLING_LOCATION_NETWORK cluster, but bonc seems to demand that all
+  -- classes appear before any cluster.
+  class EPOLLBOOK
+    description
+      "The epollbook is a database that records information about eligible \
+      \voters and tracks whether they have signed in yet."
+  class REVIEW_STATION
+    description
+      "The paper ballot review station converts the machine-readable \
+      \information on a paper ballot into human-readable form."
+  class BULLETIN_BOARD
+    description
+      "The bulletin board publishes information about the election that voters \
+      \and auditors can use to verify the election was executed correctly."
+  class BULLETIN_BOARD_CLIENT
+    description
+      "The bulletin board client is used by voters and auditors to verify that \
+      \the election was executed correctly."
+  class THRESHOLD_CRYPTOSYSTEM
+    description
+      "A threshold cryptosystem provides standard cryptographic primitives \
+      \like encryption and decryption, but keys are distributed in a \
+      \fault-tolerant way."
+  -- TODO: TPM?
+  cluster POLLING_LOCATION_NETWORK_COMPONENTS
+    description
+      "Components that may communicate with each other but must not have \
+      \access to the Internet."
+end
+
+cluster_chart POLLING_LOCATION_NETWORK_COMPONENTS
+  class CONTROLLER
+    description
+      "The controller coordinates the components on the polling location \
+      \network."
+  class VOTING_TERMINAL
+    description
+      "Voters use the voting terminal to make selections on a ballot."
+  class PHYSICAL_BALLOT_BOX
+    description
+      "The physical ballot box is used to cast paper ballots as a vote."
+  class SPOILING_STATION
+    description
+      "The spoiling station is used to spoil paper ballots."
+end
+
+class_chart CONTROLLER
+  explanation
+    "The controller serves as a central coordinator and record-keeper for the \
+    \polling location network. It tracks the encrypted ballots, the mapping \
+    \from voting codes to ballot styles, and which ballots have been cast and \
+    \spoiled."
+  query
+    "What ballot style is associated with the_voting_code?",
+    "Is the_voting_code provisional?",
+    "Is the_ballot_casting_id provisional?",
+    "What are all the voting terminals?",
+  command
+    "Produce a voting code slip for the_pollbook_sticker!",
+    "Update the casting status of the encrypted ballot associated with \
+    \the_ballot_casting_id to the_casting_status!",
+  constraint
+    "No two voting code slips produced in a single election at a single \
+    \polling location contain the same voting code.",
+    "The voting code on the voting code slip produced for the_pollbook_sticker \
+    \is associated with the ballot style indicated on the_pollbook_sticker.",
+    "The voting code on the voting code slip produced for the_pollbook_sticker \
+    \is provisional if and only if the_pollbook_sticker is provisional.",
+    "The distribution of voting codes produced is computationally \
+    \indistinguishable from uniform.",
+    "The casting status of an encrypted ballot can only be updated from \
+    \'unknown' to 'cast' or 'spoiled'.",
+    "When the casting status of an encrypted ballot is updated from 'unknown' \
+    \to 'cast', all voting terminals are commanded to include that information \
+    \in their public hash chain and their internal hash chain.",
+end
+
+class_chart VOTING_TERMINAL
+  explanation
+    "When a voter begins using a voting terminal, the terminal produces a \
+    \fresh, empty ballot of the appropriate style and guides the voter through \
+    \the process of making a selection for each race on their ballot. It uses \
+    \these selections to produce an encrypted ballot and a paper ballot for \
+    \the voter to cast or spoil."
+  query
+    "What are all the encrypted ballots produced by this voting terminal?",
+    "What is the current hash chain link of the internal hash chain?",
+    "What is all of the information used to construct the public hash chain?",
+  command
+    "Display a ballot for the_voting_code!",
+    "Speak aloud a ballot for the_voting_code in a synthesized male voice!",
+    "Select the_selection for the_race!",
+    "Display a summary of the current selections!",
+    "Speak aloud a summary of the current selections in a synthesized male \
+    \voice!",
+    "Return to the_race in the current ballot!",
+    "Produce a paper ballot and committed ballot receipt for the current \
+    \selections!",
+    "Set the_election_public_key!",
+    "Set the internal hash chain and the public hash chain to \
+    \the_hash_chain_link!",
+    "Mark the_ballot_casting_id as 'cast' in the public hash chain!",
+    "Mark the_ballot_casting_id as 'cast' in the internal hash chain!",
+  constraint
+    "The ballot style and all selections for all races are cleared when a \
+    \paper ballot and committed ballot receipt are produced.",
+    "Encrypted ballots are encrypted to the most recently set election public \
+    \key.",
+    "The public hash chain must be initialized before producing a paper ballot \
+    \or committed ballot receipt.",
+    "Each voting terminal must have a voting terminal ID that is distinct from \
+    \the voting terminal ID of any other voting terminal used in the election.",
+    "The voting terminal must support voter-supplied jelly switches and other \
+    \voter supplied input methods.",
+    "The voting terminal must comply with the Voluntary Voting System \
+    \Guidelines, 2012 draft version 1.1.",
+    "The auditory interface must support skipping ahead to the next part of \
+    \the ballot and replaying previous parts of the ballot.",
+    "The selection summary must include the full name of each race, the full \
+    \name of the selection for that race, and the party affiliation of the \
+    \selection in text form, and the party affiliation of the selection in \
+    \graphic form.",
+    "The party graphics for distinct parties must be quickly visually \
+    \distinguishable.",
+    "The selection summary must highlight undervotes in orange.",
+    "The hash chain link chosen to initialize the internal hash chain and the \
+    \public hash chain must be unique over all elections.",
+    "All visual interfaces are pre-rendered.",
+end
+
+-- TODO: Should committed ballot receipts be signed so that a disgruntled voter
+-- couldn't just make one up and claim the election was fraudulent? If so, how
+-- do we satisfy skeptical voters that the signature on their receipt is valid
+-- before they leave the polling place?
+--
+-- Answer from the paper:
+-- "For STAR-Vote, we have considered a number of mitigations against these
+-- attacks, ranging from cryptographic (having the voting terminals compute a
+-- digital signature, with protected key material) to procedural (e.g.,
+-- watermarking the paper or having poll workers physically sign spoiled
+-- ballots). Real STAR-Vote deployments will inevitably use one or more of
+-- these mitigations."
+
+-- TODO: How do we prevent a cheating voting terminal from avoiding blame by
+-- printing a different voting terminal ID than its own on its committed ballot
+-- receipt?
+--
+-- Answer from discussions with colleagues:
+-- If the corresponding encrypted record appears in the hash chain of one of
+-- the voting terminals, that seems like good evidence to convict that
+-- terminal. If the corresponding encrypted record does not appear in a hash
+-- chain, but does appear in one of the terminals' list of encrypted records,
+-- that, too, seems like good evidence to convict that terminal. If the
+-- corresponding encrypted record does not appear in a hash chain and does not
+-- appear in any terminal's list of encrypted records, then it will not be
+-- included in the tally and will not be included on the bulletin board, at
+-- which point the voter should complain and it would not be clear which
+-- terminal was at fault.
+--
+-- This seems like a pretty cheap way to nullify a vote the terminal doesn't
+-- like. So maybe this isn't an answer at all.
+
+class_chart PHYSICAL_BALLOT_BOX
+  explanation
+    "The physical ballot box is used to cast a paper ballot, converting it \
+    \into a vote. Ballots cast by provisional voters are stored separately \
+    \from ballots cast by voters that are not provisional, and are processed \
+    \only once it has been determined that the provisional voter properly \
+    \registered."
+  query
+    "Are you provisional?",
+  command
+    "Cast the_paper_ballot!",
+    "You are provisional!",
+    "You are not provisional!",
+  constraint
+    "When the_paper_ballot is cast, the physical ballot box instructs the \
+    \controller to set the casting status of the ballot casting ID of \
+    \the_paper_ballot to 'cast'.",
+    "Once a paper ballot is cast, it is irretrievable by the voter.",
+    "Each voter can only cast one paper ballot.",
+    "When casting a paper ballot, the ballot casting ID of the paper ballot \
+    \must be provisional if and only if the ballot box is provisional.",
+    "Only paper ballots produced in the last five minutes may be cast.",
+end
+
+class_chart SPOILING_STATION
+  explanation
+    "The spoiling station is used by voters to spoil their paper ballots. They \
+    \may then return to a voting terminal to produce another paper ballot."
+  command
+    "Spoil the_paper_ballot!",
+  constraint
+    "When the_paper_ballot is spoiled, the spoiling station instructs the \
+    \controller to set the casting status of the ballot casting ID of \
+    \the_paper_ballot to 'spoiled'.",
+end
+
+class_chart EPOLLBOOK
+  explanation
+    "The epollbook is used to determine the eligibility of potential voters, \
+    \record information about provisional voters, and ensure that voters only \
+    \vote once."
+  query
+    "What is the voter status of the_voter?",
+  command
+    "Produce a pollbook sticker for the_voter!",
+    "Set the voter status of the_voter to the_voter_status!",
+  constraint
+    "The voter status of a voter may only be set if it is currently \
+    \'registered'.",
+end
+
+class_chart REVIEW_STATION
+  explanation
+    "Some of the information on a paper ballot is stored in barcodes or other \
+    \visual formats that may be difficult for voters (especially \
+    \visually-impaired voters) to decipher. Voters can use a review station to \
+    \check that the contents of a paper ballot matches their intentions. To \
+    \reduce the level of trust needed, it is expected that several independent \
+    \parties will supply their own review stations."
+  command
+    "Display all information on the_paper_ballot!",
+    "Speak all information on the_paper_ballot aloud in a synthesized male \
+    \voice!",
+end
+
+class_chart BULLETIN_BOARD
+  explanation
+    "After an election, election officials use the bulletin board to publish \
+    \encrypted ballots, spoiled ballots, and election outcomes to enable \
+    \voters and auditors to verify that the election was carried out \
+    \correctly."
+end
+
+class_chart BULLETIN_BOARD_CLIENT
+  explanation
+    "After an election, the bulletin board client can be used to view the \
+    \information on the bulletin board. It enables many checks: anybody can \
+    \verify that the information on the board came from the election \
+    \officials; voters with spoiled paper ballots can check that a \
+    \corresponding encrypted ballot has a matching decryption; voters with a \
+    \committed ballot receipt can check that a corresponding encrypted ballot \
+    \appears (and is not spoiled and therefore decrypted); anybody can check \
+    \that the decryptions of encrypted ballots are correct; and anybody can \
+    \check that all encrypted ballots with no decryptions contribute to the \
+    \final election outcome."
+end
+
+class_chart THRESHOLD_CRYPTOSYSTEM
+  explanation
+    "A threshold cryptosystem provides encryption and decryption services. \
+    \However, whereas the more familiar asymmetric cryptosystems have a single \
+    \public key and a single private key, threshold cryptosystems have many \
+    \public and private keys. These keys can be chosen by election officials, \
+    \then combined such that decryption can be performed if and only if a \
+    \quorum agrees."
+  query
+    "Given that there are the_count trustees, what is a new election public \
+    \key and collection of trustee private keys such that the_threshold \
+    \trustees can perform decryptions?",
+    "What is an encrypted ballot for the_selections under \
+    \the_election_public_key?",
+    "What is a verifiable ballot commitment for the_encrypted_ballot?",
+    "What is the encrypted tally of the_encrypted_ballots?",
+    "What is the verifiable decryption of the_encrypted_ballot under \
+    \the_trustee_private_keys?",
+    "What is the verifiable decryption of the_encrypted_tally under \
+    \the_trustee_private_keys?",
+    "What is the digital signature of the_hash_chain_link under \
+    \the_trustee_private_keys?",
+  constraint
+    "The threshold used to create an election public key must be at most the \
+    \count of trustees.",
+    "The number of trustee private keys generated by the key generation query \
+    \is equal to the_count.",
+    "The number of trustee private keys provided to the decryption and \
+    \signature queries must be at least as great as the threshold set when \
+    \choosing the election public key.",
+end
+
+-- TODO: walk through the append-only bulletin board paper to add requirements
+-- from there
+
+-- TODO: walk through the RLA papers to add requirements from there:
+-- * SOBA: Secrecy-preserving Observable Ballot-level Audits, Benaloh et al. 2011
+-- * A Gentle Introduction to Risk-Limiting Audits, Lindeman and Stark 2012
+
+-- TODO: how do we ensure that somebody doesn't hand their voting code off to a
+-- friend who wants to vote a different ballot style than they're supposed to?
+
+cluster_chart TYPES
+  explanation
+    "The different kinds of data that are stored, transmitted, or otherwise \
+    \manipulated by the system."
+end
+
+cluster_chart ARTIFACTS
+  explanation
+    "Physical objects that are produced, consumed, tracked, or otherwise \
+    \manipulated by the system."
+  class POLLING_LOCATION
+    description
+      "A physical space at which voters may interact with the components of \
+      \the system."
+  -- cluster VOTING_CODE_STATUS
+  --   description
+  --     "Voting codes become inactive after a time to prevent shared voting \
+  --     \codes from enabling a voter to vote with a different ballot style than \
+  --     \their registration."
+end
+
+class_chart POLLING_LOCATION
+  explanation
+    "Each polling location has a collection of computers running \
+    \instantiations of components. For an election to run, there are \
+    \constraints on how many instantiations there may be of each component. \
+    \This class encapsulates these constraints, as well as some constraints \
+    \that are shared among all component instantiations."
+  constraint
+    "There must be exactly one instantiation of an epollbook.",
+    "There must be at least one instantiation of a review station.",
+    "There must be exactly one instantiation of a controller.",
+    "There must be at least one instantiation of a voting terminal.",
+    "There must be at least one instantiation of a physical ballot box that is \
+    \not provisional.",
+    "There must be at least one instantiation of a physical ballot box that is \
+    \provisional.",
+    "There must be at least one instantiation of a spoiling station.",
+    "Each component instantiation must have one full day's worth of dedicated \
+    \battery backup power.",
+    "The instantiation of the epollbook must synchronize with all epollbook \
+    \instantiations at other polling locations.",
+end
