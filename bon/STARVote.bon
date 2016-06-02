@@ -72,6 +72,8 @@ cluster_chart POLLING_LOCATION_NETWORK_COMPONENTS
       "The spoiling station is used to spoil paper ballots."
 end
 
+-- TODO: What causes a voting code to become inactive?
+
 class_chart CONTROLLER
   explanation
     "The controller serves as a central coordinator and record-keeper for the \
@@ -81,19 +83,24 @@ class_chart CONTROLLER
   query
     "What ballot style is associated with the_voting_code?",
     "Is the_voting_code provisional?",
+    "Is the_voting_code active?",
     "Is the_ballot_casting_id provisional?",
     "What are all the voting terminals?",
   command
-    "Produce a voting code slip for the_pollbook_sticker!",
+    "Produce a voting code slip for the_pollbook_sticker_barcode!",
     "Update the casting status of the encrypted ballot associated with \
     \the_ballot_casting_id to the_casting_status!",
   constraint
     "No two voting code slips produced in a single election at a single \
     \polling location contain the same voting code.",
-    "The voting code on the voting code slip produced for the_pollbook_sticker \
-    \is associated with the ballot style indicated on the_pollbook_sticker.",
-    "The voting code on the voting code slip produced for the_pollbook_sticker \
-    \is provisional if and only if the_pollbook_sticker is provisional.",
+    "The voting code on the voting code slip produced for \
+    \the_pollbook_sticker_barcode is associated with the ballot style \
+    \indicated on the_pollbook_sticker_barcode.",
+    "The voting code on the voting code slip produced for \
+    \the_pollbook_sticker_barcode is provisional if and only if \
+    \the_pollbook_sticker_barcode is provisional.",
+    "The voting code on the voting code slip produced for \
+    \the_pollbook_sticker_barcode is active.",
     "The distribution of voting codes produced is computationally \
     \indistinguishable from uniform.",
     "The casting status of an encrypted ballot can only be updated from \
@@ -130,6 +137,7 @@ class_chart VOTING_TERMINAL
     "Mark the_ballot_casting_id as 'cast' in the public hash chain!",
     "Mark the_ballot_casting_id as 'cast' in the internal hash chain!",
   constraint
+    "Only active voting codes may be used to display a ballot.",
     "The ballot style and all selections for all races are cleared when a \
     \paper ballot and committed ballot receipt are produced.",
     "Encrypted ballots are encrypted to the most recently set election public \
@@ -237,6 +245,7 @@ class_chart EPOLLBOOK
   constraint
     "The voter status of a voter may only be set if it is currently \
     \'registered'.",
+    "Producing a pollbook sticker must use a thermal printer.",
 end
 
 class_chart REVIEW_STATION
@@ -321,6 +330,16 @@ cluster_chart TYPES
   explanation
     "The different kinds of data that are stored, transmitted, or otherwise \
     \manipulated by the system."
+  class VOTING_CODE
+    description
+      "Voting codes are five-digit numbers used to anonymize voters."
+end
+
+class_chart VOTING_CODE
+  explanation
+    "Voting codes are five-digit numbers used to anonymize voters."
+  query
+    "What are your five digits?",
 end
 
 cluster_chart ARTIFACTS
@@ -331,11 +350,20 @@ cluster_chart ARTIFACTS
     description
       "A physical space at which voters may interact with the components of \
       \the system."
-  -- cluster VOTING_CODE_STATUS
-  --   description
-  --     "Voting codes become inactive after a time to prevent shared voting \
-  --     \codes from enabling a voter to vote with a different ballot style than \
-  --     \their registration."
+  class POLLBOOK_STICKER
+    description
+      "A pollbook sticker contains information about a voter."
+  class POLLBOOK_STICKER_BARCODE
+    description
+      "A machine-readable version of the non-identifying information on a \
+      \pollbook sticker."
+  class PHYSICAL_POLLBOOK
+    description
+      "A book containing pollbook stickers and voter signatures that acts as a \
+      \paper backup to the epollbook."
+  class VOTING_CODE_SLIP
+    description
+      "A voting code slip is a piece of paper containing a voting code."
 end
 
 class_chart POLLING_LOCATION
@@ -359,4 +387,52 @@ class_chart POLLING_LOCATION
     \battery backup power.",
     "The instantiation of the epollbook must synchronize with all epollbook \
     \instantiations at other polling locations.",
+end
+
+class_chart POLLBOOK_STICKER
+  explanation
+    "A pollbook sticker identifies a voter. It is used in the physical \
+    \pollbook to record who voted, where they voted, and what ballot style \
+    \they used."
+  query
+    "What is your name?",
+    "What is your precinct?",
+    "What is your ballot style?",
+    "Are you provisional?",
+    "What is your pollbook sticker barcode?",
+  constraint
+    "The precinct and ballot style in the pollbook sticker barcode match the \
+    \precinct and ballot style on the pollbook sticker.",
+    "The pollbook sticker barcode is provisional if and only if the pollbook \
+    \sticker is provisional.",
+end
+
+class_chart POLLBOOK_STICKER_BARCODE
+  explanation
+    "The pollbook sticker barcode is a machine-readable form of the \
+    \non-identifying information on a pollbook sticker."
+  query
+    "What is your precinct?",
+    "What is your ballot style?",
+    "Are you provisional?",
+  constraint
+    "No other queries are supported.",
+end
+
+class_chart PHYSICAL_POLLBOOK
+  explanation
+    "The physical pollbook acts as a paper backup to the epollbook. It tracks \
+    \which polling location each voter voted at (if any)."
+  query
+    "What are all the pollbook stickers?",
+    "What are all the voters' signatures?",
+  command
+    "Add the_pollbook_sticker and the_voter_signature to your collection!",
+end
+
+class_chart VOTING_CODE_SLIP
+  explanation
+    "A voting code slip is a piece of paper with a voting code on it."
+  query
+    "What is your voting code?",
 end
