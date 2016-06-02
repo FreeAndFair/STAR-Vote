@@ -25,9 +25,19 @@ end
 cluster_chart COMPONENTS
   explanation
     "Each component is an independent software process."
-  -- Logically I would like these classes to come after the
-  -- POLLING_LOCATION_NETWORK cluster, but bonc seems to demand that all
-  -- classes appear before any cluster.
+  class CONTROLLER
+    description
+      "The controller coordinates the components on the polling location \
+      \network."
+  class VOTING_TERMINAL
+    description
+      "Voters use the voting terminal to make selections on a ballot."
+  class PHYSICAL_BALLOT_BOX
+    description
+      "The physical ballot box is used to cast paper ballots as a vote."
+  class SPOILING_STATION
+    description
+      "The spoiling station is used to spoil paper ballots."
   class EPOLLBOOK
     description
       "The epollbook is a database that records information about eligible \
@@ -50,26 +60,6 @@ cluster_chart COMPONENTS
       \like encryption and decryption, but keys are distributed in a \
       \fault-tolerant way."
   -- TODO: TPM?
-  cluster POLLING_LOCATION_NETWORK_COMPONENTS
-    description
-      "Components that may communicate with each other but must not have \
-      \access to the Internet."
-end
-
-cluster_chart POLLING_LOCATION_NETWORK_COMPONENTS
-  class CONTROLLER
-    description
-      "The controller coordinates the components on the polling location \
-      \network."
-  class VOTING_TERMINAL
-    description
-      "Voters use the voting terminal to make selections on a ballot."
-  class PHYSICAL_BALLOT_BOX
-    description
-      "The physical ballot box is used to cast paper ballots as a vote."
-  class SPOILING_STATION
-    description
-      "The spoiling station is used to spoil paper ballots."
 end
 
 -- TODO: What causes a voting code to become inactive?
@@ -387,6 +377,10 @@ class_chart POLLING_LOCATION
     \battery backup power.",
     "The instantiation of the epollbook must synchronize with all epollbook \
     \instantiations at other polling locations.",
+    "The instantiations of the controller, voting terminal, physical ballot \
+    \box, and spoiling station must be on an air-gapped network. In \
+    \particular, they must not be connected to the Internet or to the \
+    \instantiations of any other components.",
 end
 
 class_chart POLLBOOK_STICKER
