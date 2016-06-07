@@ -323,6 +323,14 @@ cluster_chart TYPES
   class VOTING_CODE
     description
       "Voting codes are five-digit numbers used to anonymize voters."
+  class VERIFIABLE_BALLOT_COMMITMENT
+    description
+      "A verifiable ballot commitment can be used to check that a voting \
+      \terminal has recorded the correct selections."
+  class ENCRYPTED_BALLOT
+    description
+      "An encrypted ballot stores information about the selections a voter has \
+      \made, along with some audit information."
 end
 
 class_chart VOTING_CODE
@@ -330,6 +338,27 @@ class_chart VOTING_CODE
     "Voting codes are five-digit numbers used to anonymize voters."
   query
     "What are your five digits?",
+end
+
+class_chart VERIFIABLE_BALLOT_COMMITMENT
+  explanation
+    "A verifiable ballot commitment reveals nothing about the selections on a \
+    \ballot, is easy to create from an encrypted ballot, and (with the \
+    \cooperation of its creator) can be easily checked for consistency with \
+    \the decryption of an encrypted ballot. Moreover, it is difficult to \
+    \create a verifiable ballot commitment that is consistent with selections \
+    \different than the ones used to create the verifiable ballot commitment. \
+    \Together, these properties make verifiable ballot commitments a valuable \
+    \tool for catching voting terminals that try to record different \
+    \selections than those intended."
+end
+
+class_chart ENCRYPTED_BALLOT
+  explanation
+    "An encrypted ballot contains the encryption of the selections made by a \
+    \voter. There are no queries or commands -- as far as most people are \
+    \concerned, it is an opaque blob of bits. Only election trustees can \
+    \operate on them (via the threshold cryptosystem)."
 end
 
 cluster_chart ARTIFACTS
@@ -354,6 +383,14 @@ cluster_chart ARTIFACTS
   class VOTING_CODE_SLIP
     description
       "A voting code slip is a piece of paper containing a voting code."
+  class PAPER_BALLOT
+    description
+      "A paper ballot records all of the selections made by a voter and the \
+      \information needed to carry out audits."
+  class COMMITTED_BALLOT_RECEIPT
+    description
+      "A committed ballot receipt contains information that voters can use to \
+      \verify that their selections are included in the official vote tally."
 end
 
 class_chart POLLING_LOCATION
@@ -429,4 +466,75 @@ class_chart VOTING_CODE_SLIP
     "A voting code slip is a piece of paper with a voting code on it."
   query
     "What is your voting code?",
+end
+
+class_chart PAPER_BALLOT
+  explanation
+    "A paper ballot records all of the selections made by a voter and the \
+    \information needed to carry out audits."
+  query
+    "What selections did the voter make?",
+    -- TODO: We need to decide how to interpret the paper here. In particular,
+    -- does the paper ballot include the ballot ID in the clear? Does it
+    -- include the ballot casting ID in the clear? Below are the places where
+    -- these concepts are mentioned in the paper in relation to the paper
+    -- ballot. (N.B. the paper sometimes uses slightly different and less
+    -- consistent terminology than we are using in this specification.)
+    --
+    -- If the paper ballot contains both the ballot ID and ballot casting ID in
+    -- the clear, it would be good to replace this "TODO" comment with an
+    -- explanatory comment describing the role of each -- why both are needed,
+    -- why it is okay to tie the two together in this way, etc.
+    --
+    -- If the paper ballot contains the ballot ID, make sure that we have the
+    -- uniqueness+randomness constraint somewhere. (Probably that should go on
+    -- the voting terminal, since it is the one in charge of producing paper
+    -- ballots.) Does the uniqueness have to span across polling locations? How
+    -- does that work if they're not allowed to be connected to each other by a
+    -- network? (...*are* they forbidden from connecting to each other, or just
+    -- forbidden from connecting to the Internet?)
+    --
+    -- From page 20:
+    --
+    -- > a paper ballot which includes... a random (non-sequential) serial
+    -- > number
+    --
+    -- From page 21:
+    --
+    -- > The ballot box... can read the serial number from the ballot
+    --
+    -- From page 21:
+    --
+    -- > Because the ballot box is connected to the controller over the LAN, it
+    -- > can also query the controller as to whether the ballot is provisional.
+    --
+    -- (...and the controller has a query about whether a given ballot casting
+    -- ID is provisional.)
+    --
+    -- From page 31:
+    --
+    -- > (1) For each ballot, the ballot marking device selects a random ballot
+    -- >     id sequence number `bid`. This `bid` is printed on the ballots...
+    -- > (4) Now, auditors can sample the paper ballots, read the `bid` printed
+    -- >     on them, ...
+    --
+    -- From pages 31-32:
+    --
+    -- > The voting terminal performs the following operations:
+    -- > (a) It selects a unique and unpredictable ballot identifier `bid`, as
+    -- >     well as a unique (but possibly predictable) ballot casting
+    -- >     identifier `bcid`...
+    -- > (e) It prints a paper ballot in two parts. The first contains...
+    -- >     `bcid` in a robust machine readable format.
+end
+
+class_chart COMMITTED_BALLOT_RECEIPT
+  explanation
+    "A committed ballot receipt contains information that voters can use to \
+    \verify that their selections are included in the official vote tally."
+  query
+    "What is the voting terminal ID of the voting terminal instantiation that \
+    \produced you?",
+    "When were you produced?",
+    "What is your verifiable ballot commitment?",
 end
