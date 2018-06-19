@@ -67,7 +67,7 @@ Executable star-terminal
     crypto-api                >= 0.13   && < 0.14,
     data-default,
     DRBG                      >=0.5     && <0.6,
-    HPDF                      >=1.4.6   && <1.5,
+    HPDF                      >=1.4.6   && <1.4.7,
     http-client,
     http-client-tls,
     MonadCatchIO-transformers >= 0.2.1  && < 0.4,

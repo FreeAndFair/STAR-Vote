@@ -11,7 +11,7 @@ import Data.Char
 import Data.Monoid
 import Data.Text (Text)
 import Snap
-import System.Posix.Env.ByteString
+--import System.Posix.Env.ByteString
 import System.Process
 import Text.Blaze.Html5
 import Text.Blaze.Html5.Attributes

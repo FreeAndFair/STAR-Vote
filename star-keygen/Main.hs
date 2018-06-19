@@ -12,7 +12,7 @@
   #-}
 module Main where
 
-import Application.Star.CommonImports
+import Application.Star.CommonImports hiding (liftEither)
 import Application.Star.Instances ()
 import Application.Star.Util hiding (method)
 import Control.Exception

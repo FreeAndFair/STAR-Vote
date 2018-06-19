@@ -243,11 +243,14 @@ server js =
 
 main :: IO ()
 main = do dbfile <- getDataFileName "bb.sqlite"
+          print "got db file"
           jsdir <- getDataFileName "js"
+          print "got js dir"
           conn <- connectSqlite3 dbfile
           g <- fmap cprgCreate createEntropyPool :: IO SystemRNG
           let initialState = BBState g conn
           serverConfig <- commandLineConfig mempty :: IO (Config BB ())
+          print "started server"
           simpleHttpServe serverConfig $
             evalStateT (server jsdir) initialState
 
