@@ -1,0 +1,14 @@
+session_name: star-server
+windows:
+- window_name: dev window
+  layout: tiled
+  shell_command_before:
+    - cd $parentdir
+    - mkdir -p $dir/log
+    - cd ~/$dir
+  panes:
+    - bbserver -p $bbport
+    - star-keygen -p $keygenport
+    - star-voter-db -p $dbport
+    - star-controller -p $controllerport
+    - 

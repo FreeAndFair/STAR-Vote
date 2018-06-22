@@ -1,0 +1,14 @@
+session_name: star-server
+windows:
+- window_name: dev window
+  layout: tiled
+  shell_command_before:
+    - cd ~
+    - mkdir -p starvote/log
+    - cd ~/starvote
+  panes:
+    - bbserver -p 8000
+    - star-keygen -p 8001
+    - star-voter-db -p 8002
+    - star-controller -p 8003
+    - 
