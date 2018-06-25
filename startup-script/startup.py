@@ -7,6 +7,8 @@ import crayons
 import socket
 import sys
 import requests
+import os
+import textwrap
 
 startPort = 8000
 muxconfig = { 'parentdir'      : '~'
@@ -55,9 +57,20 @@ def print_item(item, response):
 
 http_template = 'http://{servername}:{port!s}/{endpoint}'
 
+def initialize_keygen(cfg, trustees, threshold):
+    url = http_template.format(servername=cfg['servername'], port = cfg['keygenport'], endpoint='initialize.html')
+    values = {'trustee_count':trustees, 'threshold':threshold}    
+    r=requests.post(url, data=values)
+    print_item('Initialzing key', http_resposne_to_string(r))
+    filename = '{pd}/{filename}/key.html'.format(pd=cfg['parentdir'], filename=cfg['dir'])
+    with open(os.path.expanduser(filename),'w+') as fileout:
+        print(r.text, file=fileout)
+    print_item('Writing key to {fn}'.format(fn=filename), crayons.green('OK', bold=True))
+
 def register_keygen(cfg):
     url = http_template.format(servername=cfg['servername'], port = cfg['keygenport'], endpoint='register.html')
-    r = requests.post(url)
+    values = {'action':'register and refetch'} #we want to refetch, since we've reset the bb since startup
+    r = requests.post(url, data = values)
     print_item ('Registering with keygen server', http_resposne_to_string(r))
 
 def get_reset_page(cfg):
@@ -74,6 +87,15 @@ def reset_bulletin_board(cfg):
     get_reset_page(cfg)
     post_reset_bulletin_board(cfg)
 
+def initialize_voters(cfg, csv):
+    url = http_template.format(servername=cfg['servername'], port = cfg['dbport'], endpoint='initialize')
+    r = requests.post(url,data={'csv':csv})
+    print_item('Initializing voter database', http_resposne_to_string(r))
+
+voters = textwrap.dedent('\
+            1,John Doe,Nowhereland,1,oregon-201\n\
+            2,Jane Doe,Stix,2,oregon-2014\n\
+            3,Jimmy Bat,Stix,3,oregon-2014')
 
 start_servers(muxconfig)
 print("Started server")
@@ -81,6 +103,8 @@ check_server(muxconfig['bbport'], 'bulletin board')
 reset_bulletin_board(muxconfig)
 check_server(muxconfig['keygenport'], 'keygen server')
 register_keygen(muxconfig)
+initialize_keygen(muxconfig,1,1)
 check_server(muxconfig['dbport'], 'database server')
+initialize_voters(muxconfig,voters)
 check_server(muxconfig['controllerport'], 'controller server')
 
